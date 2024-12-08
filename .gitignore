@@ -18,6 +18,9 @@
 .zshrc
 .lesshst
 .gitconfig
+.wget-hsts
 /local
 /go
+/logs
+
 
