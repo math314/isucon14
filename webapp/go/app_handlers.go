@@ -821,8 +821,8 @@ type appGetNearbyChairsResponseChair struct {
 }
 
 type LatLon struct {
-	Lat int `json:"latitude"`
-	Lon int `json:"longitude"`
+	Lat int `db:"latitude"`
+	Lon int `db:"longitude"`
 }
 
 func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
