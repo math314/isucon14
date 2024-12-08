@@ -38,6 +38,16 @@ func runMatching() {
 			}
 		}
 
+		notify := false
+		sql := "SELECT COUNT(*) = 0 FORM ride_statuses S, rides R WHERE S.ride_id = R.id AND R.chair_id = ? AND S.chair_sent_at IS NULL"
+		if err := db.GetContext(ctx, &notify, sql, matched.ID); err != nil {
+			slog.Error("failed to get notify", "error", err)
+			return
+		}
+		if !notify {
+			continue
+		}
+
 		if err := db.GetContext(ctx, &empty, "SELECT COUNT(*) = 0 FROM (SELECT COUNT(chair_sent_at) = 6 AS completed FROM ride_statuses WHERE ride_id IN (SELECT id FROM rides WHERE chair_id = ?) GROUP BY ride_id) is_completed WHERE completed = FALSE", matched.ID); err != nil {
 			slog.Error("match error 2", "error", err)
 			return
