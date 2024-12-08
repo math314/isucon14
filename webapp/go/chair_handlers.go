@@ -111,41 +111,14 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	/**
-	  CREATE TABLE chair_locations_latest
-	  (
-	    chair_id   VARCHAR(26) NOT NULL COMMENT '椅子ID',
-	    latitude   INTEGER     NOT NULL COMMENT '経度',
-	    longitude  INTEGER     NOT NULL COMMENT '緯度',
-	    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '更新日時',
-	    total_distance INTEGER NOT NULL DEFAULT 0 COMMENT '合計移動距離',
-	    PRIMARY KEY (chair_id)
-	  );
-	*/
-
-	chairLocationID := ulid.Make().String()
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO chair_locations (id, chair_id, latitude, longitude) VALUES (?, ?, ?, ?)`,
-		chairLocationID, chair.ID, req.Latitude, req.Longitude,
-	); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	location := &ChairLocation{}
-	if err := tx.GetContext(ctx, location, `SELECT * FROM chair_locations WHERE id = ?`, chairLocationID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
+	updatedAt := ulid.Now()
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at) VALUES (?, ?, ?, ?)
 		  ON DUPLICATE KEY UPDATE 
 			  total_distance = total_distance + ABS(latitude - ?) + ABS(longitude - ?), latitude = ?, longitude = ?, updated_at = ?`,
-		chair.ID, req.Latitude, req.Longitude, location.CreatedAt,
-		req.Latitude, req.Longitude, req.Latitude, req.Longitude, location.CreatedAt,
+		chair.ID, req.Latitude, req.Longitude, updatedAt,
+		req.Latitude, req.Longitude, req.Latitude, req.Longitude, updatedAt,
 	); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -186,7 +159,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
-		RecordedAt: location.CreatedAt.UnixMilli(),
+		RecordedAt: updatedAt.UnixMilli(),
 	})
 }
 
