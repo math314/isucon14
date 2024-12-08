@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -18,10 +19,21 @@ import (
 )
 
 var db *sqlx.DB
+var appRetryAfterMs int
+var chairRetryAfterMs int
+var appNotifyMs int
 
 func main() {
 	mux := setup()
 	slog.Info("Listening on :8080")
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+
+		for range ticker.C {
+			slog.Info("run matching")
+			runMatching()
+		}
+	}()
 	http.ListenAndServe(":8080", mux)
 }
 
@@ -65,13 +77,21 @@ func setup() http.Handler {
 	}
 	db = _db
 
-
 	appRetryAfterMs = 500
 	appRetryAfterMsStr := os.Getenv("APP_RETRY_AFTER_MS")
 	if appRetryAfterMsStr != "" {
 		appRetryAfterMs, err = strconv.Atoi(appRetryAfterMsStr)
 		if err != nil {
 			panic(fmt.Sprintf("failed to convert APP_RETRY_AFTER_MS environment variable into int: %v", err))
+		}
+	}
+
+	appNotifyMs = 500
+	appNotifyMsStr := os.Getenv("APP_NOTIFY_AFTER_MS")
+	if appNotifyMsStr != "" {
+		appNotifyMs, err = strconv.Atoi(appNotifyMsStr)
+		if err != nil {
+			panic(fmt.Sprintf("failed to convert APP_NOTIFY_AFTER_MS environment variable into int: %v", err))
 		}
 	}
 
@@ -83,7 +103,6 @@ func setup() http.Handler {
 			panic(fmt.Sprintf("failed to convert CHAIR_RETRY_AFTER_MS environment variable into int: %v", err))
 		}
 	}
-
 
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
@@ -100,7 +119,7 @@ func setup() http.Handler {
 		authedMux.HandleFunc("POST /api/app/rides", appPostRides)
 		authedMux.HandleFunc("POST /api/app/rides/estimated-fare", appPostRidesEstimatedFare)
 		authedMux.HandleFunc("POST /api/app/rides/{ride_id}/evaluation", appPostRideEvaluatation)
-		authedMux.HandleFunc("GET /api/app/notification", appGetNotification)
+		authedMux.HandleFunc("GET /api/app/notification", appGetNotificationSSE)
 		authedMux.HandleFunc("GET /api/app/nearby-chairs", appGetNearbyChairs)
 	}
 
@@ -125,9 +144,9 @@ func setup() http.Handler {
 	}
 
 	// internal handlers
-	{
-		mux.HandleFunc("GET /api/internal/matching", internalGetMatching)
-	}
+	// {
+	// 	mux.HandleFunc("GET /api/internal/matching", internalGetMatching)
+	// }
 
 	return mux
 }

@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -747,6 +750,59 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func appGetNotificationBunri(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := ctx.Value("user").(*User)
+
+	response, err := getRideStatus(ctx, user.ID)
+	if errors.Is(ErrNoRides, err) {
+		writeJSON(w, http.StatusOK, &appGetNotificationResponse{
+			RetryAfterMs: appRetryAfterMs,
+		})
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := ctx.Value("user").(*User)
+
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Expose-Headers", "Content-Type")
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	for {
+		d, err := getRideStatus(ctx, user.ID)
+		b, _ := json.Marshal(d)
+		fmt.Fprintf(w, "data: %s\n", b)
+		w.(http.Flusher).Flush()
+
+		if errors.Is(ErrNoRides, err) {
+			// retry
+			time.Sleep(time.Duration(appRetryAfterMs) * time.Millisecond)
+			continue
+		} else if err != nil {
+			slog.Error("appGetNotificationSSE", "error", err)
+			return
+		}
+
+		select {
+		case <-r.Context().Done():
+			return
+		default:
+			time.Sleep(time.Duration(appNotifyMs) * time.Millisecond)
+		}
+	}
 }
 
 func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNotificationResponseChairStats, error) {
