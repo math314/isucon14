@@ -85,3 +85,23 @@ type Coupon struct {
 	CreatedAt time.Time `db:"created_at"`
 	UsedBy    *string   `db:"used_by"`
 }
+
+/**
+  CREATE TABLE chair_locations_latest
+  (
+    chair_id   VARCHAR(26) NOT NULL COMMENT '椅子ID',
+    latitude   INTEGER     NOT NULL COMMENT '経度',
+    longitude  INTEGER     NOT NULL COMMENT '緯度',
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '更新日時',
+    total_distance INTEGER NOT NULL DEFAULT 0 COMMENT '合計移動距離',
+    PRIMARY KEY (chair_id)
+  );
+*/
+
+type ChairLocationLatest struct {
+	ChairID       string    `db:"chair_id"`
+	Latitude      int       `db:"latitude"`
+	Longitude     int       `db:"longitude"`
+	UpdatedAt     time.Time `db:"updated_at"`
+	TotalDistance int       `db:"total_distance"`
+}

@@ -821,6 +821,11 @@ type appGetNearbyChairsResponseChair struct {
 	CurrentCoordinate Coordinate `json:"current_coordinate"`
 }
 
+type LatLon struct {
+	Lat int `json:"latitude"`
+	Lon int `json:"longitude"`
+}
+
 func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	latStr := r.URL.Query().Get("latitude")
@@ -902,11 +907,11 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 最新の位置情報を取得
-		chairLocation := &ChairLocation{}
+		chairLocation := &LatLon{}
 		err = tx.GetContext(
 			ctx,
 			chairLocation,
-			`SELECT * FROM chair_locations WHERE chair_id = ? ORDER BY created_at DESC LIMIT 1`,
+			`SELECT * FROM chair_locations_latest WHERE chair_id = ?`,
 			chair.ID,
 		)
 		if err != nil {
@@ -917,14 +922,14 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if calculateDistance(coordinate.Latitude, coordinate.Longitude, chairLocation.Latitude, chairLocation.Longitude) <= distance {
+		if calculateDistance(coordinate.Latitude, coordinate.Longitude, chairLocation.Lat, chairLocation.Lon) <= distance {
 			nearbyChairs = append(nearbyChairs, appGetNearbyChairsResponseChair{
 				ID:    chair.ID,
 				Name:  chair.Name,
 				Model: chair.Model,
 				CurrentCoordinate: Coordinate{
-					Latitude:  chairLocation.Latitude,
-					Longitude: chairLocation.Longitude,
+					Latitude:  chairLocation.Lat,
+					Longitude: chairLocation.Lon,
 				},
 			})
 		}
