@@ -105,6 +105,42 @@ func setup() http.Handler {
 		}
 	}
 
+
+	// 定期的にChairLocationLatestを保存する処理
+	go func(){
+		ticker := time.NewTicker(1 * time.Second)
+		for range ticker.C {
+			ctx := context.Background()
+			func() {
+				tx, err := db.Begin()
+				if err != nil {
+					slog.Error("failed to begin tx", "error", err)
+					return
+				}
+				now := time.Now()
+				chairLocationCacheMapRWMutex.RLock()
+				defer chairLocationCacheMapRWMutex.RUnlock()
+
+				for _, cll := range chairLocationCacheMap {
+					if now.Before(cll.UpdatedAt) { // now < cll.UpdatedAt
+						// 更新されているのでDBに保存する
+						if _, err := tx.ExecContext(
+							ctx,
+							`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at, total_distance) VALUES (?, ?, ?, ?, ?)
+							ON DUPLICATE KEY UPDATE 
+								latitude = ?, longitude = ?, updated_at = ?, total_distance = ?`,
+							cll.ChairID, cll.Latitude, cll.Longitude, cll.UpdatedAt, cll.TotalDistance, cll.Latitude, cll.Longitude, cll.UpdatedAt, cll.TotalDistance,
+						); err != nil {
+							slog.Error("failed to insert chair location", "error", err)
+						}
+					}
+				}
+			
+				chairLocationCacheStoredAt = now
+			}()
+		}
+	}()
+
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
@@ -181,7 +217,7 @@ func loadChairLocationCache(ctx context.Context) error {
 	for _, location := range locations {
 		chairLocationCacheMap[location.ChairID] = location
 	}
-
+	chairLocationCacheStoredAt = time.Now()
 	return nil
 }
 

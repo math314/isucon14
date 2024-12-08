@@ -26,6 +26,7 @@ type chairPostChairsResponse struct {
 
 var chairLocationCacheMapRWMutex = sync.RWMutex{}
 var chairLocationCacheMap map[string]ChairLocationLatest = make(map[string]ChairLocationLatest)
+var chairLocationCacheStoredAt time.Time
 
 func chairPostChairs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -139,19 +140,6 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 	chairLocationCacheMap[chair.ID] = cll
 	chairLocationCacheMapRWMutex.Unlock()
-
-	// DBにも保存する
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at) VALUES (?, ?, ?, ?)
-		  ON DUPLICATE KEY UPDATE 
-			  total_distance = total_distance + ABS(latitude - ?) + ABS(longitude - ?), latitude = ?, longitude = ?, updated_at = ?`,
-		chair.ID, req.Latitude, req.Longitude, updatedAt,
-		req.Latitude, req.Longitude, req.Latitude, req.Longitude, updatedAt,
-	); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
 
 	ride := &Ride{}
 	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
