@@ -778,13 +778,14 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := ctx.Value("user").(*User)
 
+	w.Header().Set("X-Accel-Buffering", "no")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Expose-Headers", "Content-Type")
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	for range r.Context().Done() {
+	for {
 		d, err := getRideStatus(ctx, user.ID)
 		b, _ := json.Marshal(d)
 		fmt.Fprintf(w, "data: %s\n", b)
@@ -798,7 +799,13 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			slog.Error("appGetNotificationSSE", "error", err)
 			return
 		}
-		time.Sleep(appNotifyMs * time.Millisecond)
+
+		select {
+		case <-r.Context().Done():
+			return
+		default:
+			time.Sleep(appNotifyMs * time.Millisecond)
+		}
 	}
 }
 
