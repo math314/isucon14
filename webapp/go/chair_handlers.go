@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/oklog/ulid/v2"
 )
@@ -111,7 +112,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	updatedAt := ulid.Now()
+	updatedAt := time.Now()
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at) VALUES (?, ?, ?, ?)
