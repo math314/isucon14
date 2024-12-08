@@ -29,7 +29,7 @@ func runMatching() {
 	}
 
 	latestChairLocations := []ChairLocationLatest{}
-	if err := tx.GetContext(ctx, latestChairLocations, "SELECT * FROM chair_locations_latest WHERE chair_id IN (SELECT id FROM chairs WHERE is_active = TRUE AND is_free = TRUE)"); err != nil {
+	if err := tx.SelectContext(ctx, latestChairLocations, "SELECT * FROM chair_locations_latest WHERE chair_id IN (SELECT id FROM chairs WHERE is_active = TRUE AND is_free = TRUE)"); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			slog.Info("no chairs")
 			return
