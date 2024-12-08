@@ -102,9 +102,8 @@ func setup() http.Handler {
 		useMatching = true
 	}
 
-
 	// 定期的にChairLocationLatestを保存する処理
-	go func(){
+	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		for range ticker.C {
 			ctx := context.Background()
@@ -132,10 +131,9 @@ func setup() http.Handler {
 							slog.Error("failed to insert chair location", "error", err)
 						}
 						cll.isDirty = false
-						slog.Info("saved chair location", "chair_id", cll.ChairID)
 					}
 				}
-			
+
 			}()
 		}
 	}()
@@ -154,9 +152,7 @@ func setup() http.Handler {
 		slog.Warn("not use matching")
 	}
 
-
 	mux := chi.NewRouter()
-	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
 	mux.HandleFunc("POST /api/initialize", postInitialize)
 
