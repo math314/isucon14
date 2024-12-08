@@ -108,43 +108,37 @@ func setup() http.Handler {
 
 	// 定期的にChairLocationLatestを保存する処理
 	go func(){
-		ticker := time.NewTicker(1 * time.Millisecond)
+		ticker := time.NewTicker(1500 * time.Millisecond)
 		for range ticker.C {
 			ctx := context.Background()
 			func() {
+				tx, err := db.Begin()
+				if err != nil {
+					slog.Error("failed to begin tx", "error", err)
+					return
+				}
+				defer tx.Commit()
 
 				chairLocationCacheMapRWMutex.Lock()
 				defer chairLocationCacheMapRWMutex.Unlock()
 
-				data := []map[string]interface{}{}
-
 				for _, cll := range chairLocationCacheMap {
 					if cll.isDirty { // now < cll.UpdatedAt
-						data = append(data, map[string]interface{}{
-							"chair_id": cll.ChairID,
-							"latitude": cll.Latitude,
-							"longitude": cll.Longitude,
-							"updated_at": cll.UpdatedAt,
-							"total_distance": cll.TotalDistance,
-						})
+						// 更新されているのでDBに保存する
+						if _, err := tx.ExecContext(
+							ctx,
+							`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at, total_distance) VALUES (?, ?, ?, ?, ?)
+							ON DUPLICATE KEY UPDATE 
+								latitude = ?, longitude = ?, updated_at = ?, total_distance = ?`,
+							cll.ChairID, cll.Latitude, cll.Longitude, cll.UpdatedAt, cll.TotalDistance, cll.Latitude, cll.Longitude, cll.UpdatedAt, cll.TotalDistance,
+						); err != nil {
+							slog.Error("failed to insert chair location", "error", err)
+						}
 						cll.isDirty = false
 						slog.Info("saved chair location", "chair_id", cll.ChairID)
 					}
 				}
-
-				if len(data) != 0 {
-					// 更新されているのでDBに保存する
-					if _, err := db.NamedExecContext(
-						ctx,
-						`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at, total_distance) VALUES (:chair_id, :latitude, :longitude, :updated_at, :total_distance)
-						ON DUPLICATE KEY UPDATE latitude = :latitude, longitude = :longitude, updated_at = :updated_at, total_distance = :total_distance`,
-						data,
-					); err != nil {
-						slog.Error("failed to insert chair location", "error", err)
-					}
-					slog.Info("saved chair locations", "count", len(data))
-				}
-				
+			
 			}()
 		}
 	}()
