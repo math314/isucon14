@@ -787,6 +787,10 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 
 	for range r.Context().Done() {
 		d, err := getRideStatus(ctx, user.ID)
+		b, _ := json.Marshal(d)
+		fmt.Fprintf(w, "data: %s\n", b)
+		time.Sleep(appNotifyMs * time.Millisecond)
+		w.(http.Flusher).Flush()
 
 		if errors.Is(ErrNoRides, err) {
 			// retry
@@ -796,10 +800,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			slog.Error("appGetNotificationSSE", "error", err)
 			return
 		}
-		b, _ := json.Marshal(d)
-		fmt.Fprintf(w, "data: %s\n\n", b)
 		time.Sleep(appNotifyMs * time.Millisecond)
-		w.(http.Flusher).Flush()
 	}
 }
 
