@@ -144,11 +144,10 @@ func setup() http.Handler {
 	if useMatching {
 		slog.Info("use matching")
 		go func() {
-			ticker := time.NewTicker(500 * time.Millisecond)
-
-			for range ticker.C {
+			for{
 				slog.Info("run matching")
 				runMatching()
+				<-time.After(200 * time.Millisecond)
 			}
 		}()
 	} else {
