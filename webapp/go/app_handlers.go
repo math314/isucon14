@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -11,6 +13,10 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/oklog/ulid/v2"
 )
+
+const retryAfterMs = 500
+const appNotifyMs = 500
+const appNotifyRetryMs = 1500
 
 type appPostUsersRequest struct {
 	Username       string  `json:"username"`
@@ -747,6 +753,51 @@ func appGetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func appGetNotificationBunri(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := ctx.Value("user").(*User)
+
+	response, err := getRideStatus(ctx, user.ID)
+	if errors.Is(ErrNoRides, err) {
+		writeJSON(w, http.StatusOK, &appGetNotificationResponse{
+			RetryAfterMs: retryAfterMs,
+		})
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	// ctx := context.Timeout()
+	user := ctx.Value("user").(*User)
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Expose-Headers", "Content-Type")
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	for range r.Context().Done() {
+		d, err := getRideStatus(ctx, user.ID)
+
+		if errors.Is(ErrNoRides, err) {
+			// retry
+			time.Sleep(appNotifyRetryMs * time.Millisecond)
+		} else if err != nil {
+			return
+		}
+		b, _ := json.Marshal(d)
+		fmt.Fprintf(w, "data: %s\n\n", b)
+		time.Sleep(appNotifyMs * time.Millisecond)
+		w.(http.Flusher).Flush()
+	}
 }
 
 func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNotificationResponseChairStats, error) {

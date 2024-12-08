@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -22,6 +23,14 @@ var db *sqlx.DB
 func main() {
 	mux := setup()
 	slog.Info("Listening on :8080")
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+
+		for range ticker.C {
+			slog.Info("run matching")
+			runMatching()
+		}
+	}()
 	http.ListenAndServe(":8080", mux)
 }
 
@@ -125,9 +134,9 @@ func setup() http.Handler {
 	}
 
 	// internal handlers
-	{
-		mux.HandleFunc("GET /api/internal/matching", internalGetMatching)
-	}
+	// {
+	// 	mux.HandleFunc("GET /api/internal/matching", internalGetMatching)
+	// }
 
 	return mux
 }
