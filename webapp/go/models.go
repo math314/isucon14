@@ -104,4 +104,5 @@ type ChairLocationLatest struct {
 	Longitude     int       `db:"longitude"`
 	UpdatedAt     time.Time `db:"updated_at"`
 	TotalDistance int       `db:"total_distance"`
+	isDirty	      bool
 }

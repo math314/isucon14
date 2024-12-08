@@ -117,12 +117,12 @@ func setup() http.Handler {
 					slog.Error("failed to begin tx", "error", err)
 					return
 				}
-				now := time.Now()
-				chairLocationCacheMapRWMutex.RLock()
-				defer chairLocationCacheMapRWMutex.RUnlock()
+
+				chairLocationCacheMapRWMutex.Lock()
+				defer chairLocationCacheMapRWMutex.Unlock()
 
 				for _, cll := range chairLocationCacheMap {
-					if now.Before(cll.UpdatedAt) { // now < cll.UpdatedAt
+					if cll.isDirty { // now < cll.UpdatedAt
 						// 更新されているのでDBに保存する
 						if _, err := tx.ExecContext(
 							ctx,
@@ -133,10 +133,11 @@ func setup() http.Handler {
 						); err != nil {
 							slog.Error("failed to insert chair location", "error", err)
 						}
+						cll.isDirty = false
+						slog.Info("saved chair location", "chair_id", cll.ChairID)
 					}
 				}
 			
-				chairLocationCacheStoredAt = now
 			}()
 		}
 	}()

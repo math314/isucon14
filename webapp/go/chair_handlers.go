@@ -25,8 +25,7 @@ type chairPostChairsResponse struct {
 }
 
 var chairLocationCacheMapRWMutex = sync.RWMutex{}
-var chairLocationCacheMap map[string]ChairLocationLatest = make(map[string]ChairLocationLatest)
-var chairLocationCacheStoredAt time.Time
+var chairLocationCacheMap map[string]*ChairLocationLatest = make(map[string]*ChairLocationLatest)
 
 func chairPostChairs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -131,12 +130,14 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 			Longitude: req.Longitude,
 			UpdatedAt: updatedAt,
 			TotalDistance: 0,
+			isDirty: true,
 		}
 	}else{
 		cll.TotalDistance += abs(cll.Latitude - req.Latitude) + abs(cll.Longitude - req.Longitude)
 		cll.Latitude = req.Latitude
 		cll.Longitude = req.Longitude
 		cll.UpdatedAt = updatedAt
+		cll.isDirty = true
 	}
 	chairLocationCacheMap[chair.ID] = cll
 	chairLocationCacheMapRWMutex.Unlock()
