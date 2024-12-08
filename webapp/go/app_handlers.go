@@ -15,10 +15,6 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-const retryAfterMs = 500
-const appNotifyMs = 500
-const appNotifyRetryMs = 1500
-
 type appPostUsersRequest struct {
 	Username       string  `json:"username"`
 	FirstName      string  `json:"firstname"`
@@ -763,7 +759,7 @@ func appGetNotificationBunri(w http.ResponseWriter, r *http.Request) {
 	response, err := getRideStatus(ctx, user.ID)
 	if errors.Is(ErrNoRides, err) {
 		writeJSON(w, http.StatusOK, &appGetNotificationResponse{
-			RetryAfterMs: retryAfterMs,
+			RetryAfterMs: appRetryAfterMs,
 		})
 		return
 	} else if err != nil {
@@ -793,7 +789,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 
 		if errors.Is(ErrNoRides, err) {
 			// retry
-			time.Sleep(appNotifyRetryMs * time.Millisecond)
+			time.Sleep(time.Duration(appRetryAfterMs) * time.Millisecond)
 			continue
 		} else if err != nil {
 			slog.Error("appGetNotificationSSE", "error", err)
@@ -804,7 +800,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
-			time.Sleep(appNotifyMs * time.Millisecond)
+			time.Sleep(time.Duration(appNotifyMs) * time.Millisecond)
 		}
 	}
 }

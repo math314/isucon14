@@ -19,6 +19,9 @@ import (
 )
 
 var db *sqlx.DB
+var appRetryAfterMs int
+var chairRetryAfterMs int
+var appNotifyMs int
 
 func main() {
 	mux := setup()
@@ -74,13 +77,21 @@ func setup() http.Handler {
 	}
 	db = _db
 
-
 	appRetryAfterMs = 500
 	appRetryAfterMsStr := os.Getenv("APP_RETRY_AFTER_MS")
 	if appRetryAfterMsStr != "" {
 		appRetryAfterMs, err = strconv.Atoi(appRetryAfterMsStr)
 		if err != nil {
 			panic(fmt.Sprintf("failed to convert APP_RETRY_AFTER_MS environment variable into int: %v", err))
+		}
+	}
+
+	appNotifyMs = 500
+	appNotifyMsStr := os.Getenv("APP_NOTIFY_AFTER_MS")
+	if appNotifyMsStr != "" {
+		appNotifyMs, err = strconv.Atoi(appNotifyMsStr)
+		if err != nil {
+			panic(fmt.Sprintf("failed to convert APP_NOTIFY_AFTER_MS environment variable into int: %v", err))
 		}
 	}
 
@@ -92,7 +103,6 @@ func setup() http.Handler {
 			panic(fmt.Sprintf("failed to convert CHAIR_RETRY_AFTER_MS environment variable into int: %v", err))
 		}
 	}
-
 
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
