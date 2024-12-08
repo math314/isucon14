@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -104,6 +105,44 @@ func setup() http.Handler {
 		}
 	}
 
+
+	// 定期的にChairLocationLatestを保存する処理
+	go func(){
+		ticker := time.NewTicker(500 * time.Millisecond)
+		for range ticker.C {
+			ctx := context.Background()
+			func() {
+				tx, err := db.Begin()
+				if err != nil {
+					slog.Error("failed to begin tx", "error", err)
+					return
+				}
+				defer tx.Commit()
+
+				chairLocationCacheMapRWMutex.Lock()
+				defer chairLocationCacheMapRWMutex.Unlock()
+
+				for _, cll := range chairLocationCacheMap {
+					if cll.isDirty { // now < cll.UpdatedAt
+						// 更新されているのでDBに保存する
+						if _, err := tx.ExecContext(
+							ctx,
+							`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at, total_distance) VALUES (?, ?, ?, ?, ?)
+							ON DUPLICATE KEY UPDATE 
+								latitude = ?, longitude = ?, updated_at = ?, total_distance = ?`,
+							cll.ChairID, cll.Latitude, cll.Longitude, cll.UpdatedAt, cll.TotalDistance, cll.Latitude, cll.Longitude, cll.UpdatedAt, cll.TotalDistance,
+						); err != nil {
+							slog.Error("failed to insert chair location", "error", err)
+						}
+						cll.isDirty = false
+						slog.Info("saved chair location", "chair_id", cll.ChairID)
+					}
+				}
+			
+			}()
+		}
+	}()
+
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
 	mux.Use(middleware.Recoverer)
@@ -166,6 +205,23 @@ type postInitializeResponse struct {
 	Language string `json:"language"`
 }
 
+func loadChairLocationCache(ctx context.Context) error {
+	// DBからキャッシュとしてメモリにロード
+	chairLocationCacheMapRWMutex.Lock()
+	defer chairLocationCacheMapRWMutex.Unlock()
+
+	chairLocationCacheMap = map[string]*ChairLocationLatest{}
+	locations := []ChairLocationLatest{}
+	if err := db.SelectContext(ctx, &locations, `SELECT * FROM chair_locations_latest`); err != nil {
+		return err
+	}
+
+	for _, location := range locations {
+		chairLocationCacheMap[location.ChairID] = &location
+	}
+	return nil
+}
+
 func postInitialize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &postInitializeRequest{}
@@ -185,6 +241,11 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := reloadLatestChairLocations(db); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := loadChairLocationCache(ctx); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
