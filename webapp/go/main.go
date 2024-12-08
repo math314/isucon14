@@ -112,12 +112,6 @@ func setup() http.Handler {
 		for range ticker.C {
 			ctx := context.Background()
 			func() {
-				tx, err := db.Begin()
-				if err != nil {
-					slog.Error("failed to begin tx", "error", err)
-					return
-				}
-				defer tx.Commit()
 
 				chairLocationCacheMapRWMutex.Lock()
 				defer chairLocationCacheMapRWMutex.Unlock()
@@ -140,7 +134,7 @@ func setup() http.Handler {
 
 				if len(data) == 0 {
 					// 更新されているのでDBに保存する
-					if _, err := tx.ExecContext(
+					if _, err := db.NamedExecContext(
 						ctx,
 						`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at, total_distance) VALUES (:chair_id, :latitude, :longitude, :updated_at, :total_distance)
 						ON DUPLICATE KEY UPDATE latitude = :latitude, longitude = :longitude, updated_at = :updated_at, total_distance = :total_distance`,
