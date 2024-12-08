@@ -776,7 +776,6 @@ func appGetNotificationBunri(w http.ResponseWriter, r *http.Request) {
 
 func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// ctx := context.Timeout()
 	user := ctx.Value("user").(*User)
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -789,7 +788,6 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 		d, err := getRideStatus(ctx, user.ID)
 		b, _ := json.Marshal(d)
 		fmt.Fprintf(w, "data: %s\n", b)
-		time.Sleep(appNotifyMs * time.Millisecond)
 		w.(http.Flusher).Flush()
 
 		if errors.Is(ErrNoRides, err) {
