@@ -70,6 +70,9 @@ func setup() http.Handler {
 	}
 	db = _db
 
+	db.SetMaxOpenConns(100)
+	db.SetMaxIdleConns(128)
+
 	appRetryAfterMs = 500
 	appRetryAfterMsStr := os.Getenv("APP_RETRY_AFTER_MS")
 	if appRetryAfterMsStr != "" {
