@@ -52,6 +52,11 @@ func runMatching() {
 		}
 	}
 
+	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
+		slog.Error("failed to update ride", "error", err)
+		return
+	}
+
 	if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 0 WHERE id = ?`, matchedId); err != nil {
 		slog.Error("failed to update chairs", "error", err)
 		return
