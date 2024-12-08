@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 )
+
 func runMatching() {
 	ctx := context.Background()
 
@@ -27,29 +28,34 @@ func runMatching() {
 		return
 	}
 
-	matched := &Chair{}
-	if err := tx.GetContext(ctx, matched, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE AND is_free = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
+	latestChairLocations := []ChairLocationLatest{}
+	if err := db.GetContext(ctx, latestChairLocations, "SELECT * FROM chair_locations_latest WHERE chair_id IN (SELECT id FROM chairs WHERE is_active = TRUE AND is_free = TRUE)"); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			slog.Error("no chairs", "error", err)
-			return
-		} else {
-			slog.Error("match error 2", "error", err)
+			slog.Info("no chairs")
 			return
 		}
 	}
 
-	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matched.ID, ride.ID); err != nil {
-		slog.Error("failed to update ride", "error", err)
+	if len(latestChairLocations) == 0 {
+		slog.Info("not empty")
 		return
 	}
 
-	if _, err := tx.ExecContext(
-		ctx,
-		`UPDATE chairs SET is_free = 0 WHERE id = ?`,
-		matched.ID); err != nil {
+	// nearest chair
+	matchedId := ""
+	nearest := 10000000
+	for _, chair := range latestChairLocations {
+		distance := abs(chair.Latitude-ride.PickupLatitude) + abs(chair.Longitude-ride.PickupLongitude)
+		if distance < nearest {
+			nearest = distance
+			matchedId = chair.ChairID
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 0 WHERE id = ?`, matchedId); err != nil {
 		slog.Error("failed to update chairs", "error", err)
 		return
 	}
-	slog.Info("matched", "ride_id", ride.ID, "chair_id", matched.ID)
+	slog.Info("matched", "ride_id", ride.ID, "chair_id", matchedId)
 	tx.Commit()
 }
