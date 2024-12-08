@@ -108,7 +108,7 @@ func setup() http.Handler {
 
 	// 定期的にChairLocationLatestを保存する処理
 	go func(){
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(1 * time.Millisecond)
 		for range ticker.C {
 			ctx := context.Background()
 			func() {
@@ -117,6 +117,7 @@ func setup() http.Handler {
 					slog.Error("failed to begin tx", "error", err)
 					return
 				}
+				defer tx.Commit()
 
 				chairLocationCacheMapRWMutex.Lock()
 				defer chairLocationCacheMapRWMutex.Unlock()
