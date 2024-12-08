@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/google/uuid"
 )
 
 var erroredUpstream = errors.New("errored upstream")
@@ -32,7 +32,7 @@ func requestPaymentGatewayPostPayment(ctx context.Context, paymentGatewayURL str
 	// 失敗したらとりあえずリトライ
 	// FIXME: 社内決済マイクロサービスのインフラに異常が発生していて、同時にたくさんリクエストすると変なことになる可能性あり
 	retry := 0
-	idempotencyKey := uuid.V4().String()
+	idempotencyKey := uuid.NewString()
 	for {
 		err := func() error {
 			// 決済リクエストを投げる
