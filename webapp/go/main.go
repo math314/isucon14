@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	crand "crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -166,6 +167,24 @@ type postInitializeResponse struct {
 	Language string `json:"language"`
 }
 
+func loadChairLocationCache(ctx context.Context) error {
+	// DBからキャッシュとしてメモリにロード
+	chairLocationCacheMapRWMutex.Lock()
+	defer chairLocationCacheMapRWMutex.Unlock()
+
+	chairLocationCacheMap = map[string]ChairLocationLatest{}
+	locations := []ChairLocationLatest{}
+	if err := db.SelectContext(ctx, &locations, `SELECT * FROM chair_locations_latest`); err != nil {
+		return err
+	}
+
+	for _, location := range locations {
+		chairLocationCacheMap[location.ChairID] = location
+	}
+
+	return nil
+}
+
 func postInitialize(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &postInitializeRequest{}
@@ -185,6 +204,11 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := reloadLatestChairLocations(db); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := loadChairLocationCache(ctx); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -22,6 +23,9 @@ type chairPostChairsResponse struct {
 	ID      string `json:"id"`
 	OwnerID string `json:"owner_id"`
 }
+
+var chairLocationCacheMapRWMutex = sync.RWMutex{}
+var chairLocationCacheMap map[string]ChairLocationLatest = make(map[string]ChairLocationLatest)
 
 func chairPostChairs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -115,6 +119,28 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	updatedAt := time.Now()
+
+	// メモリ上を更新する
+	chairLocationCacheMapRWMutex.Lock()
+	cll, ok := chairLocationCacheMap[chair.ID]
+	if !ok {
+		cll = ChairLocationLatest{
+			ChairID: chair.ID,
+			Latitude: req.Latitude,
+			Longitude: req.Longitude,
+			UpdatedAt: updatedAt,
+			TotalDistance: 0,
+		}
+	}else{
+		cll.TotalDistance += abs(cll.Latitude - req.Latitude) + abs(cll.Longitude - req.Longitude)
+		cll.Latitude = req.Latitude
+		cll.Longitude = req.Longitude
+		cll.UpdatedAt = updatedAt
+	}
+	chairLocationCacheMap[chair.ID] = cll
+	chairLocationCacheMapRWMutex.Unlock()
+
+	// DBにも保存する
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at) VALUES (?, ?, ?, ?)
