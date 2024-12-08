@@ -17,6 +17,7 @@
 .x
 .zshrc
 .lesshst
+.gitconfig
 /local
 /go
 
