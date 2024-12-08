@@ -147,7 +147,7 @@ func setup() http.Handler {
 			for {
 				slog.Info("run matching")
 				runMatching()
-				<-time.After(200 * time.Millisecond)
+				<-time.After(20 * time.Millisecond)
 			}
 		}()
 	} else {
