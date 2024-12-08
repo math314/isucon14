@@ -36,8 +36,8 @@ func runMatching() {
 		}
 	}
 
-	if len(latestChairLocations) == 0 {
-		slog.Info("not empty")
+	if len(latestChairLocations) < 5 {
+		slog.Info("too few chairs")
 		return
 	}
 
