@@ -132,7 +132,7 @@ func setup() http.Handler {
 					}
 				}
 
-				if len(data) == 0 {
+				if len(data) != 0 {
 					// 更新されているのでDBに保存する
 					if _, err := db.NamedExecContext(
 						ctx,
