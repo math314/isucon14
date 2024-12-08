@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -790,7 +791,9 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(ErrNoRides, err) {
 			// retry
 			time.Sleep(appNotifyRetryMs * time.Millisecond)
+			continue
 		} else if err != nil {
+			slog.Error("appGetNotificationSSE", "error", err)
 			return
 		}
 		b, _ := json.Marshal(d)
