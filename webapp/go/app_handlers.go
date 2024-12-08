@@ -313,7 +313,6 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-
 	// 既に進行中のライドがある場合はエラー
 	continuingRideCount := 0
 	if err := tx.GetContext(ctx, &continuingRideCount, `SELECT COUNT(*) FROM rides WHERE user_id = ? AND (SELECT status FROM ride_statuses WHERE ride_id = rides.id ORDER BY created_at DESC LIMIT 1) != 'COMPLETED'`, user.ID); err != nil {
@@ -911,7 +910,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		err = tx.GetContext(
 			ctx,
 			chairLocation,
-			`SELECT * FROM chair_locations_latest WHERE chair_id = ?`,
+			`SELECT latitude, longitude FROM chair_locations_latest WHERE chair_id = ?`,
 			chair.ID,
 		)
 		if err != nil {
