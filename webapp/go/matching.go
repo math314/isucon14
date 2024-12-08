@@ -39,7 +39,7 @@ func runMatching() {
 		}
 
 		notify := false
-		sql := "SELECT COUNT(*) = 0 FORM ride_statuses S, rides R WHERE S.ride_id = R.id AND R.chair_id = ? AND S.chair_sent_at IS NULL"
+		sql := "SELECT COUNT(*) = 0 FROM ride_statuses S, rides R WHERE S.ride_id = R.id AND R.chair_id = ? AND S.chair_sent_at IS NULL"
 		if err := db.GetContext(ctx, &notify, sql, matched.ID); err != nil {
 			slog.Error("failed to get notify", "error", err)
 			return
