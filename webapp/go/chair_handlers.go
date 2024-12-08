@@ -124,7 +124,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	chairLocationCacheMapRWMutex.Lock()
 	cll, ok := chairLocationCacheMap[chair.ID]
 	if !ok {
-		cll = ChairLocationLatest{
+		cll = &ChairLocationLatest{
 			ChairID: chair.ID,
 			Latitude: req.Latitude,
 			Longitude: req.Longitude,
