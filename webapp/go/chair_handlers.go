@@ -143,9 +143,9 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		ctx,
 		`INSERT INTO chair_locations_latest (chair_id, latitude, longitude, updated_at) VALUES (?, ?, ?, ?)
 		  ON DUPLICATE KEY UPDATE 
-			  latitude = ?, longitude = ?, updated_at = CURRENT_TIMESTAMP(6), total_distance = total_distance + ABS(latitude - ?) + ABS(longitude - ?)`,
+			  total_distance = total_distance + ABS(latitude - ?) + ABS(longitude - ?), latitude = ?, longitude = ?, updated_at = ?`,
 		chair.ID, req.Latitude, req.Longitude, location.CreatedAt,
-		req.Latitude, req.Longitude, req.Latitude, req.Longitude,
+		req.Latitude, req.Longitude, req.Latitude, req.Longitude, location.CreatedAt,
 	); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
