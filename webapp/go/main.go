@@ -27,14 +27,6 @@ var appNotifyMs int
 func main() {
 	mux := setup()
 	slog.Info("Listening on :8080")
-	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
-
-		for range ticker.C {
-			slog.Info("run matching")
-			runMatching()
-		}
-	}()
 	http.ListenAndServe(":8080", mux)
 }
 
@@ -105,6 +97,11 @@ func setup() http.Handler {
 		}
 	}
 
+	useMatching := false
+	if os.Getenv("ISUCON_MATCHING") == "true" {
+		useMatching = true
+	}
+
 
 	// 定期的にChairLocationLatestを保存する処理
 	go func(){
@@ -142,6 +139,22 @@ func setup() http.Handler {
 			}()
 		}
 	}()
+
+	// 定期的にマッチングを行う処理
+	if useMatching {
+		slog.Info("use matching")
+		go func() {
+			ticker := time.NewTicker(500 * time.Millisecond)
+
+			for range ticker.C {
+				slog.Info("run matching")
+				runMatching()
+			}
+		}()
+	} else {
+		slog.Warn("not use matching")
+	}
+
 
 	mux := chi.NewRouter()
 	mux.Use(middleware.Logger)
