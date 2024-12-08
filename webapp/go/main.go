@@ -209,16 +209,15 @@ func loadChairLocationCache(ctx context.Context) error {
 	chairLocationCacheMapRWMutex.Lock()
 	defer chairLocationCacheMapRWMutex.Unlock()
 
-	chairLocationCacheMap = map[string]ChairLocationLatest{}
+	chairLocationCacheMap = map[string]*ChairLocationLatest{}
 	locations := []ChairLocationLatest{}
 	if err := db.SelectContext(ctx, &locations, `SELECT * FROM chair_locations_latest`); err != nil {
 		return err
 	}
 
 	for _, location := range locations {
-		chairLocationCacheMap[location.ChairID] = location
+		chairLocationCacheMap[location.ChairID] = &location
 	}
-	chairLocationCacheStoredAt = time.Now()
 	return nil
 }
 
