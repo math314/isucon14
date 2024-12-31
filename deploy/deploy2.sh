@@ -2,6 +2,7 @@
 
 set -eux
 cd $(dirname $0)
+source ~/.local.env
 
 git reset --hard && git checkout master && git pull
 
