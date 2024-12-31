@@ -155,7 +155,6 @@ func setup() http.Handler {
 		slog.Warn("not use matching")
 	}
 
-
 	if err := reloadLatestChairLocations(db); err != nil {
 		slog.Error("failed to reload latest chair locations", "error", err)
 	}
@@ -163,7 +162,6 @@ func setup() http.Handler {
 	if err := loadChairLocationCache(context.Background()); err != nil {
 		slog.Error("failed to load chair location cache", "error", err)
 	}
-
 
 	mux := chi.NewRouter()
 	mux.Use(middleware.Recoverer)
