@@ -4,8 +4,6 @@ set -eux
 cd $(dirname $0)
 source ~/.local.env
 
-git reset --hard && git checkout master && git pull
-
 # go service
 cd ../webapp/go
 echo `pwd`
@@ -13,7 +11,6 @@ echo `which go`
 go build -o isuride
 cd ../../deploy
 sudo systemctl stop isuride-go.service
-cp ../webapp/go/isuride /home/isucon/webapp/go/isuride
 cp ../env1.sh /home/isucon/env.sh
 sudo systemctl restart isuride-go.service
 
