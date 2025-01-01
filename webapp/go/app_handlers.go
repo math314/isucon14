@@ -122,6 +122,20 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// 招待する側の招待数をチェック
+		var coupons []Coupon
+		err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? LIMIT 4 FOR UPDATE", "INV_"+*req.InvitationCode)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("5", "error", err)
+			return
+		}
+		if len(coupons) >= 3 {
+			writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
+			slog.Error("6", "error", err)
+			return
+		}
+
 		// 招待クーポン付与
 		_, err = tx.ExecContext(
 			ctx,
@@ -142,20 +156,6 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			slog.Error("8", "error", err)
-			return
-		}
-
-		// 招待する側の招待数をチェック
-		var coupons []Coupon
-		err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? LIMIT 5 FOR UPDATE", "INV_"+*req.InvitationCode)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			slog.Error("5", "error", err)
-			return
-		}
-		if len(coupons) >= 4 {
-			writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
-			slog.Error("6", "error", err)
 			return
 		}
 	}
