@@ -101,6 +101,7 @@ func runMatching() {
 		return
 	}
 
+	slog.Info("UPDATE rides SET chair_id = ? WHERE id = ?", "matchedId", matchedId, "rideId", ride.ID)
 	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
 		slog.Error("failed to update ride", "error", err)
 		return
