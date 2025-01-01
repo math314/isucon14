@@ -5,7 +5,44 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"sync"
 )
+
+var chairIdToLatestRideIdMutex = &sync.RWMutex{}
+var chairIdToLatestRideId = make(map[string]string)
+
+func loadLatestRideToChairAssignments() error {
+	rides := []*Ride{}
+	if err := db.Select(&rides, "SELECT * FROM rides WHERE chair_id IS NOT NULL ORDER BY updated_at DESC"); err != nil {
+		slog.Error("loadLatestRideToChairAssignments", "error", err)
+		return err
+	}
+
+	chairIdToLatestRideIdMutex.Lock()
+	defer chairIdToLatestRideIdMutex.Unlock()
+
+	chairIdToLatestRideId = make(map[string]string)
+	for _, ride := range rides {
+		if _, ok := chairIdToLatestRideId[ride.ChairID.String]; ok {
+			continue
+		}
+		chairIdToLatestRideId[ride.ChairID.String] = ride.ID
+	}
+	return nil
+}
+
+func assignRideToChair(chairId, rideId string) {
+	chairIdToLatestRideIdMutex.Lock()
+	defer chairIdToLatestRideIdMutex.Unlock()
+	chairIdToLatestRideId[chairId] = rideId
+}
+
+func getLatestRideIdByChairId(chairId string) (string, bool) {
+	chairIdToLatestRideIdMutex.RLock()
+	defer chairIdToLatestRideIdMutex.RUnlock()
+	rideId, ok := chairIdToLatestRideId[chairId]
+	return rideId, ok
+}
 
 func runMatching() {
 	ctx := context.Background()
@@ -60,6 +97,9 @@ func runMatching() {
 		slog.Error("failed to update chairs", "error", err)
 		return
 	}
+
+	assignRideToChair(matchedId, ride.ID)
+
 	slog.Info("matched", "ride_id", ride.ID, "chair_id", matchedId)
 	tx.Commit()
 }

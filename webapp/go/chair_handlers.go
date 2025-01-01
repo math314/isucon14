@@ -207,6 +207,8 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	chairLocationCacheMap[chair.ID] = cll
 	chairLocationCacheMapRWMutex.Unlock()
 
+	rideIdFromCache, _ := getLatestRideIdByChairId(chair.ID)
+
 	ride := &Ride{}
 	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -218,6 +220,11 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		status, err := getLatestRideStatusFromCache(ride.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		if ride.ID != rideIdFromCache {
+			writeError(w, http.StatusInternalServerError, errors.New("ride_id mismatch"))
 			return
 		}
 
