@@ -34,6 +34,7 @@ func loadLatestRideToChairAssignments() error {
 func assignRideToChair(chairId, rideId string) {
 	chairIdToLatestRideIdMutex.Lock()
 	defer chairIdToLatestRideIdMutex.Unlock()
+	slog.Info("chairIdToLatestRideId[chair_id] = ride_id: ", "chair_id", chairId, "ride_id", rideId)
 	chairIdToLatestRideId[chairId] = rideId
 }
 
@@ -87,6 +88,10 @@ func runMatching() {
 			matchedId = chair.ChairID
 		}
 	}
+	if matchedId == "" {
+		slog.Error("no matched chair")
+		return
+	}
 
 	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
 		slog.Error("failed to update ride", "error", err)
@@ -98,7 +103,7 @@ func runMatching() {
 		return
 	}
 
-	slog.Info("matched", "ride_id", ride.ID, "chair_id", matchedId)
-	tx.Commit()
+	slog.Info("matched", "chair_id", matchedId, "ride_id", ride.ID)
 	assignRideToChair(matchedId, ride.ID)
+	tx.Commit()
 }
