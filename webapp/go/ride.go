@@ -28,7 +28,7 @@ func getRideStatus(ctx context.Context, userID string) (appGetNotificationRespon
 	status := ""
 	if err := tx.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			status, err = getLatestRideStatus(ctx, tx, ride.ID)
+			status, err = getLatestRideStatusFromCache(ride.ID)
 			if err != nil {
 				return appGetNotificationResponseData{}, err
 			}
