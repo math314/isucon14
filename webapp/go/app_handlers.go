@@ -60,8 +60,6 @@ func getLatestChairLocation(chairID string) *ChairLocationLatest {
 	return &loc
 }
 
-var appCouponMutex = &sync.RWMutex{}
-
 func appPostUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &appPostUsersRequest{}
@@ -92,6 +90,7 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
+		slog.Error("1", "error", err)
 		return
 	}
 
@@ -103,6 +102,7 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
+		slog.Error("2", "error", err)
 		return
 	}
 
@@ -114,38 +114,39 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
+				slog.Error("3", "error", err)
 				return
 			}
 			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("4", "error", err)
 			return
 		}
 
-		func() {
-			appCouponMutex.Lock()
-			defer appCouponMutex.Unlock()
-			// 招待する側の招待数をチェック
-			var coupons []Coupon
-			err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? LIMIT 4 FOR UPDATE", "INV_"+*req.InvitationCode)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
-			if len(coupons) >= 3 {
-				writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
-				return
-			}
+		// 招待する側の招待数をチェック
+		var coupons []Coupon
+		err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? LIMIT 4 FOR UPDATE", "INV_"+*req.InvitationCode)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("5", "error", err)
+			return
+		}
+		if len(coupons) >= 3 {
+			writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
+			slog.Error("6", "error", err)
+			return
+		}
 
-			// 招待クーポン付与
-			_, err = tx.ExecContext(
-				ctx,
-				"INSERT INTO coupons (user_id, code, discount) VALUES (?, ?, ?)",
-				userID, "INV_"+*req.InvitationCode, 1500,
-			)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
-		}()
+		// 招待クーポン付与
+		_, err = tx.ExecContext(
+			ctx,
+			"INSERT INTO coupons (user_id, code, discount) VALUES (?, ?, ?)",
+			userID, "INV_"+*req.InvitationCode, 1500,
+		)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("7", "error", err)
+			return
+		}
 		// 招待した人にもRewardを付与
 		_, err = tx.ExecContext(
 			ctx,
@@ -154,12 +155,14 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("8", "error", err)
 			return
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
+		slog.Error("9", "error", err)
 		return
 	}
 
