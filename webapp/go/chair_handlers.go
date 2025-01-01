@@ -214,18 +214,10 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		status, err := getLatestRideStatus(ctx, tx, ride.ID)
+		// status, err := getLatestRideStatu(ride.ID)
+		status, err := getLatestRideStatusFromCache(ride.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		statusFromCache, err := getLatestRideStatusFromCache(ride.ID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if status != statusFromCache {
-			writeError(w, http.StatusInternalServerError, errors.New("ride status is not matched"))
 			return
 		}
 
