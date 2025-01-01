@@ -60,6 +60,8 @@ func getLatestChairLocation(chairID string) *ChairLocationLatest {
 	return &loc
 }
 
+var appCouponMutex = &sync.RWMutex{}
+
 func appPostUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &appPostUsersRequest{}
@@ -118,28 +120,32 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// 招待する側の招待数をチェック
-		var coupons []Coupon
-		err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? LIMIT 4 FOR UPDATE", "INV_"+*req.InvitationCode)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if len(coupons) >= 3 {
-			writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
-			return
-		}
+		func() {
+			appCouponMutex.Lock()
+			defer appCouponMutex.Unlock()
+			// 招待する側の招待数をチェック
+			var coupons []Coupon
+			err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? LIMIT 4 FOR UPDATE", "INV_"+*req.InvitationCode)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			if len(coupons) >= 3 {
+				writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
+				return
+			}
 
-		// 招待クーポン付与
-		_, err = tx.ExecContext(
-			ctx,
-			"INSERT INTO coupons (user_id, code, discount) VALUES (?, ?, ?)",
-			userID, "INV_"+*req.InvitationCode, 1500,
-		)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+			// 招待クーポン付与
+			_, err = tx.ExecContext(
+				ctx,
+				"INSERT INTO coupons (user_id, code, discount) VALUES (?, ?, ?)",
+				userID, "INV_"+*req.InvitationCode, 1500,
+			)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+		}()
 		// 招待した人にもRewardを付与
 		_, err = tx.ExecContext(
 			ctx,
