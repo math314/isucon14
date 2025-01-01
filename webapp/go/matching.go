@@ -18,7 +18,7 @@ func runMatching() {
 	defer tx.Rollback()
 
 	rides := []*Ride{}
-	if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 5`); err != nil {
+	if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 4`); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return
 		}
@@ -34,7 +34,7 @@ func runMatching() {
 		}
 	}
 
-	if len(latestChairLocations) < 5 {
+	if len(latestChairLocations) < 8 {
 		// slog.Info("too few chairs")
 		return
 	}
