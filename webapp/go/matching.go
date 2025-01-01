@@ -19,7 +19,7 @@ func runMatching() {
 
 	// MEMO: 一旦最も待たせているリクエストに適当な空いている椅子マッチさせる実装とする。おそらくもっといい方法があるはず…
 	ride := &Ride{}
-	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 1`); err != nil {
+	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return
 		}
@@ -42,13 +42,18 @@ func runMatching() {
 
 	// nearest chair
 	matchedId := ""
-	nearest := 10000000
+	nearest := 350
 	for _, chair := range latestChairLocations {
 		distance := abs(chair.Latitude-ride.PickupLatitude) + abs(chair.Longitude-ride.PickupLongitude)
 		if distance < nearest {
 			nearest = distance
 			matchedId = chair.ChairID
 		}
+	}
+
+	if matchedId == "" {
+		slog.Info("no matched chair. Probably too far")
+		return
 	}
 
 	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
