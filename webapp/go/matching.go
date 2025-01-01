@@ -43,7 +43,7 @@ func runMatching() {
 	selectedIdsSet := map[string]struct{}{}
 	for _, ride := range rides {
 		matchedId := ""
-		nearest := 350
+		nearest := 1000000
 
 		for _, chair := range latestChairLocations {
 			if _, ok := selectedIdsSet[chair.ChairID]; ok {
