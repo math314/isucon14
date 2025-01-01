@@ -71,8 +71,8 @@ func setup() http.Handler {
 	}
 	db = _db
 
-	db.SetMaxOpenConns(100)
-	db.SetMaxIdleConns(128)
+	db.SetMaxOpenConns(50)
+	db.SetMaxIdleConns(50)
 
 	appRetryAfterMs = 500
 	appRetryAfterMsStr := os.Getenv("APP_RETRY_AFTER_MS")
@@ -108,7 +108,7 @@ func setup() http.Handler {
 
 	// 定期的にChairLocationLatestを保存する処理
 	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
+		ticker := time.NewTicker(100 * time.Millisecond)
 		for range ticker.C {
 			ctx := context.Background()
 			func() {

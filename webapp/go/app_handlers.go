@@ -106,18 +106,6 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 
 	// 招待コードを使った登録
 	if req.InvitationCode != nil && *req.InvitationCode != "" {
-		// 招待する側の招待数をチェック
-		var coupons []Coupon
-		err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? FOR UPDATE", "INV_"+*req.InvitationCode)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if len(coupons) >= 3 {
-			writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
-			return
-		}
-
 		// ユーザーチェック
 		var inviter User
 		err = tx.GetContext(ctx, &inviter, "SELECT * FROM users WHERE invitation_code = ?", *req.InvitationCode)
@@ -127,6 +115,18 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		// 招待する側の招待数をチェック
+		var coupons []Coupon
+		err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? LIMIT 4 FOR UPDATE", "INV_"+*req.InvitationCode)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if len(coupons) >= 3 {
+			writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
 			return
 		}
 
@@ -967,6 +967,22 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	nearbyChairs := []appGetNearbyChairsResponseChair{}
 	for _, chair := range chairs {
 
+		// 最新の位置情報を取得
+		chairLocation := &LatLon{}
+		// use getLatestChairLocation
+		if latestChairLocation := getLatestChairLocation(chair.ID); latestChairLocation == nil {
+			continue
+		} else {
+			chairLocation = &LatLon{
+				Lat: latestChairLocation.Latitude,
+				Lon: latestChairLocation.Longitude,
+			}
+		}
+
+		if calculateDistance(coordinate.Latitude, coordinate.Longitude, chairLocation.Lat, chairLocation.Lon) > distance {
+			continue
+		}
+
 		rides := []*Ride{}
 		if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id = ? ORDER BY created_at DESC`, chair.ID); err != nil {
 			writeError(w, http.StatusInternalServerError, err)
@@ -990,29 +1006,15 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// 最新の位置情報を取得
-		chairLocation := &LatLon{}
-		// use getLatestChairLocation
-		if latestChairLocation := getLatestChairLocation(chair.ID); latestChairLocation == nil {
-			continue
-		} else {
-			chairLocation = &LatLon{
-				Lat: latestChairLocation.Latitude,
-				Lon: latestChairLocation.Longitude,
-			}
-		}
-
-		if calculateDistance(coordinate.Latitude, coordinate.Longitude, chairLocation.Lat, chairLocation.Lon) <= distance {
-			nearbyChairs = append(nearbyChairs, appGetNearbyChairsResponseChair{
-				ID:    chair.ID,
-				Name:  chair.Name,
-				Model: chair.Model,
-				CurrentCoordinate: Coordinate{
-					Latitude:  chairLocation.Lat,
-					Longitude: chairLocation.Lon,
-				},
-			})
-		}
+		nearbyChairs = append(nearbyChairs, appGetNearbyChairsResponseChair{
+			ID:    chair.ID,
+			Name:  chair.Name,
+			Model: chair.Model,
+			CurrentCoordinate: Coordinate{
+				Latitude:  chairLocation.Lat,
+				Longitude: chairLocation.Lon,
+			},
+		})
 	}
 
 	retrievedAt := &time.Time{}
