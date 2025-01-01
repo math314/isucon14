@@ -52,7 +52,7 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 			return nil, err
 		}
 	}
-	
+
 	if yetSentRideStatus.Status == "COMPLETED" {
 		if _, err := tx.ExecContext(
 			ctx,

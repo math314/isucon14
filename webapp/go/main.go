@@ -163,6 +163,10 @@ func setup() http.Handler {
 		slog.Error("failed to load chair location cache", "error", err)
 	}
 
+	if err := loadLatestRideStatusCacheMap(); err != nil {
+		slog.Error("failed to load latest ride status cache", "error", err)
+	}
+
 	mux := chi.NewRouter()
 	mux.Use(middleware.Recoverer)
 	mux.HandleFunc("POST /api/initialize", postInitialize)
@@ -265,6 +269,11 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := loadChairLocationCache(ctx); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := loadLatestRideStatusCacheMap(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

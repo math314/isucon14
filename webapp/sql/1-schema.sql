@@ -141,3 +141,4 @@ ALTER TABLE ride_statuses ADD INDEX ride_statuses_ride_id_app_sent_at_index (rid
 ALTER TABLE ride_statuses ADD INDEX ride_statuses_ride_id_chair_sent_at_index (ride_id, chair_sent_at);
 ALTER TABLE chair_locations ADD INDEX chair_locations_chair_id_created_at_index (chair_id, created_at);
 ALTER TABLE chairs ADD INDEX chairs_access_token_index (access_token);
+ALTER TABLE coupons ADD INDEX coupons_code_index (code);

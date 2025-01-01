@@ -90,6 +90,7 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
+		slog.Error("1", "error", err)
 		return
 	}
 
@@ -101,6 +102,7 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
+		slog.Error("2", "error", err)
 		return
 	}
 
@@ -112,9 +114,11 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
+				slog.Error("3", "error", err)
 				return
 			}
 			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("4", "error", err)
 			return
 		}
 
@@ -123,10 +127,12 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 		err = tx.SelectContext(ctx, &coupons, "SELECT * FROM coupons WHERE code = ? LIMIT 4 FOR UPDATE", "INV_"+*req.InvitationCode)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("5", "error", err)
 			return
 		}
 		if len(coupons) >= 3 {
 			writeError(w, http.StatusBadRequest, errors.New("この招待コードは使用できません。"))
+			slog.Error("6", "error", err)
 			return
 		}
 
@@ -138,6 +144,7 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("7", "error", err)
 			return
 		}
 		// 招待した人にもRewardを付与
@@ -148,12 +155,14 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 		)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
+			slog.Error("8", "error", err)
 			return
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
+		slog.Error("9", "error", err)
 		return
 	}
 
@@ -370,11 +379,7 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)`,
-		ulid.Make().String(), rideID, "MATCHING",
-	); err != nil {
+	if err := insertRideStatus(ctx, tx, rideID, "MATCHING"); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -586,10 +591,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = tx.ExecContext(
-		ctx,
-		`INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)`,
-		ulid.Make().String(), rideID, "COMPLETED")
+	err = insertRideStatus(ctx, tx, rideID, "COMPLETED")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
