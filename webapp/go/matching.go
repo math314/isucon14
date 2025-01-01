@@ -18,7 +18,7 @@ func runMatching() {
 	defer tx.Rollback()
 
 	rides := []*Ride{}
-	if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
+	if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at limit`); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return
 		}
@@ -40,35 +40,39 @@ func runMatching() {
 	}
 	slog.Info("stats: ", "rides counts", len(rides), "latestChairLocations", len(latestChairLocations))
 
-	// nearest chair
-	matchedId := ""
-	nearest := 350
-	selectedRide := &Ride{}
+	selectedIdsSet := map[string]struct{}{}
 	for _, ride := range rides {
+		matchedId := ""
+		nearest := 350
+
 		for _, chair := range latestChairLocations {
+			if _, ok := selectedIdsSet[chair.ChairID]; ok {
+				continue
+			}
 			distance := abs(chair.Latitude-ride.PickupLatitude) + abs(chair.Longitude-ride.PickupLongitude)
 			if distance < nearest {
 				nearest = distance
 				matchedId = chair.ChairID
-				selectedRide = ride
 			}
+		}
+
+		if matchedId == "" {
+			slog.Info("no matched chair. Probably too far")
+			continue
+		}
+		selectedIdsSet[matchedId] = struct{}{}
+
+		if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
+			slog.Error("failed to update ride", "error", err)
+			return
+		}
+
+		if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 0 WHERE id = ?`, matchedId); err != nil {
+			slog.Error("failed to update chairs", "error", err)
+			return
 		}
 	}
 
-	if matchedId == "" {
-		slog.Info("no matched chair. Probably too far")
-		return
-	}
-
-	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, selectedRide.ID); err != nil {
-		slog.Error("failed to update ride", "error", err)
-		return
-	}
-
-	if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 0 WHERE id = ?`, matchedId); err != nil {
-		slog.Error("failed to update chairs", "error", err)
-		return
-	}
-	slog.Info("matched", "ride_id", selectedRide.ID, "chair_id", matchedId)
+	// slog.Info("matched", "ride_id", selectedRide.ID, "chair_id", matchedId)
 	tx.Commit()
 }
