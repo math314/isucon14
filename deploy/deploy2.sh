@@ -11,7 +11,7 @@ echo `which go`
 go build -o isuride
 cd ../../deploy
 sudo systemctl stop isuride-go.service
-cp ../env1.sh /home/isucon/env.sh
+cp ../env2.sh /home/isucon/env.sh
 sudo systemctl restart isuride-go.service
 
 # nginx service
