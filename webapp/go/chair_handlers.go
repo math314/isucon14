@@ -81,6 +81,17 @@ func onInsertRideStatus(rideStatus *RideStatus) {
 	latestRideStatusCacheMap[rideStatus.RideID] = rideStatus
 }
 
+func getLatestRideStatusFromCache(ride_id string) (string, error) {
+	latestRideStatusCacheMapRWMutex.RLock()
+	defer latestRideStatusCacheMapRWMutex.RUnlock()
+
+	rideStatus, ok := latestRideStatusCacheMap[ride_id]
+	if !ok {
+		return "", errors.New("ride status not found")
+	}
+	return rideStatus.Status, nil
+}
+
 func chairPostChairs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &chairPostChairsRequest{}
@@ -208,6 +219,16 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		statusFromCache, err := getLatestRideStatusFromCache(ride.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if status != statusFromCache {
+			writeError(w, http.StatusInternalServerError, errors.New("ride status is not matched"))
+			return
+		}
+
 		if status != "COMPLETED" && status != "CANCELED" {
 			if req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && status == "ENROUTE" {
 				if err := insertRideStatus(ctx, tx, ride.ID, "PICKUP"); err != nil {
