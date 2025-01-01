@@ -39,7 +39,7 @@ func loadLatestRideToChairAssignments() error {
 func assignRideToChair(chairId, rideId string) {
 	chairIdToLatestRideIdMutex.Lock()
 	defer chairIdToLatestRideIdMutex.Unlock()
-	slog.Info("chairIdToLatestRideId[chair_id] = ride_id: ", "chair_id", chairId, "ride_id", rideId)
+
 	chairIdToLatestRideId[chairId] = rideId
 }
 
@@ -47,6 +47,9 @@ func getLatestRideIdByChairId(chairId string) (string, bool) {
 	chairIdToLatestRideIdMutex.RLock()
 	defer chairIdToLatestRideIdMutex.RUnlock()
 	rideId, ok := chairIdToLatestRideId[chairId]
+
+	slog.Info("getLatestRideIdByChairId ", "chair_id", chairId, "ride_id", rideId)
+
 	return rideId, ok
 }
 
