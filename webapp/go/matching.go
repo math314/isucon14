@@ -38,6 +38,7 @@ func runMatching() {
 		// slog.Info("too few chairs")
 		return
 	}
+	slog.Info("stats: ", "rides counts", len(rides), "latestChairLocations", len(latestChairLocations))
 
 	// nearest chair
 	matchedId := ""
