@@ -224,7 +224,7 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if ride.ID != rideIdFromCache {
-			writeError(w, http.StatusInternalServerError, errors.New("ride_id mismatch"))
+			writeError(w, http.StatusInternalServerError, errors.New("ride_id mismatch ride.Id ="+ride.ID+" rideIdFromCache = "+rideIdFromCache))
 			return
 		}
 

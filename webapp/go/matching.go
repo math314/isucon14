@@ -98,8 +98,7 @@ func runMatching() {
 		return
 	}
 
-	assignRideToChair(matchedId, ride.ID)
-
 	slog.Info("matched", "ride_id", ride.ID, "chair_id", matchedId)
 	tx.Commit()
+	assignRideToChair(matchedId, ride.ID)
 }
