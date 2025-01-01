@@ -28,6 +28,11 @@ func loadLatestRideToChairAssignments() error {
 		}
 		chairIdToLatestRideId[ride.ChairID.String] = ride.ID
 	}
+
+	for chairId, rideId := range chairIdToLatestRideId {
+		slog.Info("loadLatestRideToChairAssignments", "chair_id", chairId, "ride_id", rideId)
+	}
+
 	return nil
 }
 
