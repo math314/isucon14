@@ -18,7 +18,7 @@ func runMatching() {
 	defer tx.Rollback()
 
 	rides := []*Ride{}
-	if err := tx.SelectContext(ctx, rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
+	if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at`); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return
 		}
