@@ -89,6 +89,8 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 		slog.Info("notification data is not same", "dataFromDB", d, "dataFromChannel", "nil")
 	} else if d != *unsentData {
 		slog.Info("notification data is not same", "dataFromDB", d, "dataFromChannel", *unsentData)
+	} else {
+		slog.Info("notification data is same", "dataFromDB", d)
 	}
 
 	return &d, nil
