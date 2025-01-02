@@ -30,7 +30,7 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 
 	if !alreadySent && nextData.Status == "COMPLETED" {
 		chairs := []*Chair{}
-		if err := tx.SelectContext(ctx, chairs, `SELECT * FROM chairs WHERE id in (SELECT chair_id FROM rides WHERE id = ?)`, nextData.RideID); err != nil {
+		if err := tx.SelectContext(ctx, &chairs, `SELECT * FROM chairs WHERE id in (SELECT chair_id FROM rides WHERE id = ?)`, nextData.RideID); err != nil {
 			slog.Error("failed to get chairs", "error", err)
 			return nil, err
 		}
