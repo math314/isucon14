@@ -356,7 +356,7 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	// After Picking up user
 	case "CARRYING":
-		status, err := getLatestRideStatus(ctx, tx, ride.ID)
+		status, err := getLatestRideStatus(ctx, tx, ride.ID, "chairPostRideStatus")
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
