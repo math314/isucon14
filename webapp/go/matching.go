@@ -35,23 +35,15 @@ func assignRideToChair(chairId string, ride Ride) {
 	chairIdToLatestRideIdMutex.Lock()
 	defer chairIdToLatestRideIdMutex.Unlock()
 
-	slog.Info("assignRideToChair", "chair_id", chairId, "ride_id", ride.ID)
-
 	chairIdToLatestRideId[chairId] = &ride
 }
 
-func getLatestRideByChairId(chairId string) (Ride, bool) {
+func getLatestRideByChairId(chairId string) (*Ride, bool) {
 	chairIdToLatestRideIdMutex.RLock()
 	defer chairIdToLatestRideIdMutex.RUnlock()
 	ride, ok := chairIdToLatestRideId[chairId]
 
-	id := ""
-	if ok {
-		id = ride.ID
-	}
-	slog.Info("getLatestRideByChairId", "chair_id", chairId, "ride_id", id)
-
-	return *ride, ok
+	return ride, ok
 }
 
 func runMatching() {
