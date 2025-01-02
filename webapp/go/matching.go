@@ -119,5 +119,10 @@ func runMatching() {
 
 	slog.Info("matched", "chair_id", matchedId, "ride_id", ride.ID)
 	assignRideToChair(matchedId, newRide)
+
+	if err := buildAndAppendChairGetNotificationResponseData(ctx, tx, ride.ID, "MATCHING"); err != nil {
+		slog.Error("failed to build and append chair get notification response data", "error", err)
+		return
+	}
 	tx.Commit()
 }

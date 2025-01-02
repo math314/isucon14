@@ -74,6 +74,7 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	if _, ok := unsentRideStatusesToChairChan[chairID]; !ok {
 		unsentRideStatusesToChairChan[chairID] = make(chan *chairGetNotificationResponseData, 10)
 	}
+	slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
 	unsentRideStatusesToChairChan[chairID] <- data
 }
 
@@ -97,25 +98,26 @@ func takeLatestUnsentNotificationResponseDataToChair(chairID string) *chairGetNo
 
 var ErrNoChairAssigned = fmt.Errorf("no chair assigned")
 
-func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatus *RideStatus) (*chairGetNotificationResponseData, error) {
+func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) (*Ride, *chairGetNotificationResponseData, error) {
 	ride := &Ride{}
-	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideStatus.RideID); err != nil {
+
+	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideId); err != nil {
 		slog.Error("buildChairGetNotificationResponseData get ride", "error", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	if !ride.ChairID.Valid {
-		slog.Info("buildChairGetNotificationResponseData chair is not assigned yet", "ride", *ride, "rideStatus", *rideStatus)
-		return nil, ErrNoChairAssigned
+		slog.Info("buildChairGetNotificationResponseData chair is not assigned yet", "ride", *ride, "rideStatus", rideStatus)
+		return nil, nil, ErrNoChairAssigned
 	}
 
 	user := &User{}
 	if err := tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID); err != nil {
 		slog.Error("buildChairGetNotificationResponseData get user", "error", err)
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &chairGetNotificationResponseData{
+	b := &chairGetNotificationResponseData{
 		RideID: ride.ID,
 		User: simpleUser{
 			ID:   user.ID,
@@ -129,12 +131,15 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 			Latitude:  ride.DestinationLatitude,
 			Longitude: ride.DestinationLongitude,
 		},
-		Status: rideStatus.Status,
-	}, nil
+		Status: rideStatus,
+	}
+	slog.Info("buildChairGetNotificationResponseData", "data", b)
+
+	return ride, b, nil
 }
 
-func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatus *RideStatus) error {
-	responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideStatus)
+func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) error {
+	ride, responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
 			return nil
@@ -143,7 +148,7 @@ func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sql
 		}
 	}
 
-	appendChairGetNotificationResponseData(rideStatus.RideID, responseData)
+	appendChairGetNotificationResponseData(ride.ChairID.String, responseData)
 	return nil
 }
 
