@@ -74,6 +74,30 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 	return nil
 }
 
+func insertRideStatusWithoutTransaction(ctx context.Context, ride_id, status string) error {
+	id := ulid.Make().String()
+	now := time.Now()
+	_, err := db.ExecContext(
+		ctx,
+		"INSERT INTO ride_statuses (id, ride_id, status, created_at) VALUES (?, ?, ?, ?)",
+		id, ride_id, status, now)
+	if err != nil {
+		return err
+	}
+
+	rideStatus := &RideStatus{
+		ID:          id,
+		RideID:      ride_id,
+		Status:      status,
+		CreatedAt:   now,
+		AppSentAt:   nil,
+		ChairSentAt: nil,
+	}
+	onInsertRideStatus(rideStatus)
+
+	return nil
+}
+
 func onInsertRideStatus(rideStatus *RideStatus) {
 	latestRideStatusCacheMapRWMutex.Lock()
 	defer latestRideStatusCacheMapRWMutex.Unlock()
@@ -211,34 +235,14 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 
 		if status != "COMPLETED" && status != "CANCELED" {
 			if req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && status == "ENROUTE" {
-				tx, err := db.Beginx()
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					return
-				}
-				defer tx.Rollback()
-				if err := insertRideStatus(ctx, tx, ride.ID, "PICKUP"); err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					return
-				}
-				if err := tx.Commit(); err != nil {
+				if err := insertRideStatusWithoutTransaction(ctx, ride.ID, "PICKUP"); err != nil {
 					writeError(w, http.StatusInternalServerError, err)
 					return
 				}
 			}
 
 			if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING" {
-				tx, err := db.Beginx()
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					return
-				}
-				defer tx.Rollback()
-				if err := insertRideStatus(ctx, tx, ride.ID, "ARRIVED"); err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					return
-				}
-				if err := tx.Commit(); err != nil {
+				if err := insertRideStatusWithoutTransaction(ctx, ride.ID, "ARRIVED"); err != nil {
 					writeError(w, http.StatusInternalServerError, err)
 					return
 				}
