@@ -38,7 +38,7 @@ func assignRideToChair(chairId string, ride *Ride) {
 	chairIdToLatestRideId[chairId] = ride
 }
 
-func getLatestRideIdByChairId(chairId string) (Ride, bool) {
+func getLatestRideByChairId(chairId string) (Ride, bool) {
 	chairIdToLatestRideIdMutex.RLock()
 	defer chairIdToLatestRideIdMutex.RUnlock()
 	ride, ok := chairIdToLatestRideId[chairId]
