@@ -9,7 +9,7 @@ import (
 var ErrNoChairs = fmt.Errorf("no chairs")
 
 func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificationResponseData, error) {
-	nextData, alreadySent := takeLatestUnsentNotificationResponseDataToChair(chair.ID)
+	nextData, newNotification := takeLatestUnsentNotificationResponseDataToChair(chair.ID)
 
 	tx, err := db.Beginx()
 	if err != nil {
@@ -21,14 +21,14 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 		return nil, ErrNoChairs
 	}
 
-	// if !alreadySent {
+	// if newNotification {
 	// 	_, err := tx.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = CURRENT_TIMESTAMP(6) WHERE id = ?`, yetSentRideStatus.ID)
 	// 	if err != nil {
 	// 		return nil, err
 	// 	}
 	// }
 
-	if !alreadySent && nextData.Status == "COMPLETED" {
+	if newNotification && nextData.Status == "COMPLETED" {
 		chairs := []*Chair{}
 		if err := tx.SelectContext(ctx, &chairs, `SELECT * FROM chairs WHERE id in (SELECT chair_id FROM rides WHERE id = ?)`, nextData.RideID); err != nil {
 			slog.Error("failed to get chairs", "error", err)
@@ -51,7 +51,7 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 		return nil, err
 	}
 
-	if !alreadySent {
+	if newNotification {
 		slog.Info("notification sent", "chair", chair, "data", nextData)
 	}
 
