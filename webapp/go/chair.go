@@ -83,5 +83,13 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 		},
 		Status: status,
 	}
+
+	unsentData := takeLatestUnsentNotificationResponseDataToChair(chair.ID)
+	if unsentData == nil {
+		slog.Info("notification data is not same", "dataFromDB", d, "dataFromChannel", "nil")
+	} else if d != *unsentData {
+		slog.Info("notification data is not same", "dataFromDB", d, "dataFromChannel", *unsentData)
+	}
+
 	return &d, nil
 }

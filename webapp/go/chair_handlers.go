@@ -42,11 +42,104 @@ func loadLatestRideStatusCacheMap() error {
 		return err
 	}
 
+	latestRideStatusCacheMap = make(map[string]*RideStatus)
+
 	for _, rideStatus := range rideStatuses {
 		if _, ok := latestRideStatusCacheMap[rideStatus.RideID]; !ok {
 			latestRideStatusCacheMap[rideStatus.RideID] = rideStatus
 		}
 	}
+	return nil
+}
+
+var unsentRideStatusesToChairRWMutex = sync.RWMutex{}
+var unsentRideStatusesToChair map[string](chan *chairGetNotificationResponseData) = make(map[string](chan *chairGetNotificationResponseData))
+
+func loadUnsentRideStatusesToChair() error {
+	unsentRideStatusesToChairRWMutex.Lock()
+	defer unsentRideStatusesToChairRWMutex.Unlock()
+
+	// all notifications should be sent before the server termination
+	unsentRideStatusesToChair = make(map[string](chan *chairGetNotificationResponseData))
+
+	return nil
+}
+
+func appendChairGetNotificationResponseData(chairID string, data *chairGetNotificationResponseData) {
+	unsentRideStatusesToChairRWMutex.Lock()
+	defer unsentRideStatusesToChairRWMutex.Unlock()
+
+	if _, ok := unsentRideStatusesToChair[chairID]; !ok {
+		unsentRideStatusesToChair[chairID] = make(chan *chairGetNotificationResponseData, 10)
+	}
+	unsentRideStatusesToChair[chairID] <- data
+}
+
+func takeLatestUnsentNotificationResponseDataToChair(chairID string) *chairGetNotificationResponseData {
+	unsentRideStatusesToChairRWMutex.Lock()
+	defer unsentRideStatusesToChairRWMutex.Unlock()
+
+	c, ok := unsentRideStatusesToChair[chairID]
+	if !ok {
+		return nil
+	}
+
+	select {
+	case data := <-c:
+		return data
+	default:
+		return nil
+	}
+}
+
+var NoChairAssigned = fmt.Errorf("no chair assigned")
+
+func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatus *RideStatus) (*chairGetNotificationResponseData, error) {
+	ride := &Ride{}
+	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideStatus.RideID); err != nil {
+		slog.Error("buildChairGetNotificationResponseData get ride", "error", err)
+		return nil, err
+	}
+
+	if !ride.ChairID.Valid {
+		return nil, NoChairAssigned
+	}
+
+	user := &User{}
+	if err := tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID); err != nil {
+		slog.Error("buildChairGetNotificationResponseData get user", "error", err)
+		return nil, err
+	}
+
+	return &chairGetNotificationResponseData{
+		RideID: ride.ID,
+		User: simpleUser{
+			ID:   user.ID,
+			Name: fmt.Sprintf("%s %s", user.Firstname, user.Lastname),
+		},
+		PickupCoordinate: Coordinate{
+			Latitude:  ride.PickupLatitude,
+			Longitude: ride.PickupLongitude,
+		},
+		DestinationCoordinate: Coordinate{
+			Latitude:  ride.DestinationLatitude,
+			Longitude: ride.DestinationLongitude,
+		},
+		Status: rideStatus.Status,
+	}, nil
+}
+
+func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatus *RideStatus) error {
+	responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideStatus)
+	if err != nil {
+		if errors.Is(err, NoChairAssigned) {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	appendChairGetNotificationResponseData(rideStatus.RideID, responseData)
 	return nil
 }
 
@@ -69,36 +162,23 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 		AppSentAt:   nil,
 		ChairSentAt: nil,
 	}
-	onInsertRideStatus(rideStatus)
+	updateLatestRideStatusCacheMap(rideStatus)
+	buildAndAppendChairGetNotificationResponseData(ctx, tx, rideStatus)
 
 	return nil
 }
 
 func insertRideStatusWithoutTransaction(ctx context.Context, ride_id, status string) error {
-	id := ulid.Make().String()
-	now := time.Now()
-	_, err := db.ExecContext(
-		ctx,
-		"INSERT INTO ride_statuses (id, ride_id, status, created_at) VALUES (?, ?, ?, ?)",
-		id, ride_id, status, now)
+	tx, err := db.Beginx()
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
 
-	rideStatus := &RideStatus{
-		ID:          id,
-		RideID:      ride_id,
-		Status:      status,
-		CreatedAt:   now,
-		AppSentAt:   nil,
-		ChairSentAt: nil,
-	}
-	onInsertRideStatus(rideStatus)
-
-	return nil
+	return insertRideStatus(ctx, tx, ride_id, status)
 }
 
-func onInsertRideStatus(rideStatus *RideStatus) {
+func updateLatestRideStatusCacheMap(rideStatus *RideStatus) {
 	latestRideStatusCacheMapRWMutex.Lock()
 	defer latestRideStatusCacheMapRWMutex.Unlock()
 
