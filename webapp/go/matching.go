@@ -128,5 +128,9 @@ func runMatching() {
 	}
 	tx.Commit()
 
+	updatedChair := &Chair{}
+	db.GetContext(ctx, updatedChair, `SELECT * FROM chairs WHERE id = ?`, matchedId)
+	slog.Info("updatedChair value: ", "updatedChair", *updatedChair)
+
 	slog.Info("runMatching finished")
 }
