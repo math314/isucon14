@@ -47,6 +47,8 @@ func getLatestRideByChairId(chairId string) (*Ride, bool) {
 }
 
 func runMatching() {
+	slog.Info("runMatching started")
+
 	ctx := context.Background()
 
 	tx, err := db.Beginx()
@@ -125,4 +127,6 @@ func runMatching() {
 		return
 	}
 	tx.Commit()
+
+	slog.Info("runMatching finished")
 }
