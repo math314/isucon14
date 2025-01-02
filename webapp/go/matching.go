@@ -31,17 +31,21 @@ func loadLatestRideToChairAssignments() error {
 	return nil
 }
 
-func assignRideToChair(chairId string, ride *Ride) {
+func assignRideToChair(chairId string, ride Ride) {
 	chairIdToLatestRideIdMutex.Lock()
 	defer chairIdToLatestRideIdMutex.Unlock()
 
-	chairIdToLatestRideId[chairId] = ride
+	slog.Info("assignRideToChair", "chair_id", chairId, "ride_id", ride.ID)
+
+	chairIdToLatestRideId[chairId] = &ride
 }
 
 func getLatestRideByChairId(chairId string) (Ride, bool) {
 	chairIdToLatestRideIdMutex.RLock()
 	defer chairIdToLatestRideIdMutex.RUnlock()
 	ride, ok := chairIdToLatestRideId[chairId]
+
+	slog.Info("getLatestRideByChairId", "chair_id", chairId, "ride_id", ride.ID)
 
 	return *ride, ok
 }
@@ -104,7 +108,7 @@ func runMatching() {
 		return
 	}
 
-	newRide := &Ride{
+	newRide := Ride{
 		ID:                   ride.ID,
 		UserID:               ride.UserID,
 		ChairID:              sql.NullString{String: matchedId, Valid: true},
