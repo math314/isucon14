@@ -74,6 +74,30 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 	return nil
 }
 
+func insertRideStatusWithoutTransaction(ctx context.Context, ride_id, status string) error {
+	id := ulid.Make().String()
+	now := time.Now()
+	_, err := db.ExecContext(
+		ctx,
+		"INSERT INTO ride_statuses (id, ride_id, status, created_at) VALUES (?, ?, ?, ?)",
+		id, ride_id, status, now)
+	if err != nil {
+		return err
+	}
+
+	rideStatus := &RideStatus{
+		ID:          id,
+		RideID:      ride_id,
+		Status:      status,
+		CreatedAt:   now,
+		AppSentAt:   nil,
+		ChairSentAt: nil,
+	}
+	onInsertRideStatus(rideStatus)
+
+	return nil
+}
+
 func onInsertRideStatus(rideStatus *RideStatus) {
 	latestRideStatusCacheMapRWMutex.Lock()
 	defer latestRideStatusCacheMapRWMutex.Unlock()
@@ -175,14 +199,6 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chair := ctx.Value("chair").(*Chair)
-
-	tx, err := db.Beginx()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer tx.Rollback()
-
 	updatedAt := time.Now()
 
 	// メモリ上を更新する
@@ -207,13 +223,9 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	chairLocationCacheMap[chair.ID] = cll
 	chairLocationCacheMapRWMutex.Unlock()
 
-	ride := &Ride{}
-	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-	} else {
+	ride, _ := getLatestRideByChairId(chair.ID)
+
+	if ride != nil {
 		// status, err := getLatestRideStatu(ride.ID)
 		status, err := getLatestRideStatusFromCache(ride.ID)
 		if err != nil {
@@ -223,24 +235,19 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 
 		if status != "COMPLETED" && status != "CANCELED" {
 			if req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && status == "ENROUTE" {
-				if err := insertRideStatus(ctx, tx, ride.ID, "PICKUP"); err != nil {
+				if err := insertRideStatusWithoutTransaction(ctx, ride.ID, "PICKUP"); err != nil {
 					writeError(w, http.StatusInternalServerError, err)
 					return
 				}
 			}
 
 			if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING" {
-				if err := insertRideStatus(ctx, tx, ride.ID, "ARRIVED"); err != nil {
+				if err := insertRideStatusWithoutTransaction(ctx, ride.ID, "ARRIVED"); err != nil {
 					writeError(w, http.StatusInternalServerError, err)
 					return
 				}
 			}
 		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
 	}
 
 	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{

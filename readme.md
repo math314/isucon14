@@ -23,3 +23,5 @@ git checkout master -f
 git branch --set-upstream-to origin/master
 ```
 
+memo:
+https://gist.github.com/math314/814ae9021e2a01a40d9cc1f6fc2411bc

@@ -5,7 +5,46 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"sync"
 )
+
+var chairIdToLatestRideIdMutex = &sync.RWMutex{}
+var chairIdToLatestRideId = make(map[string]*Ride)
+
+func loadLatestRideToChairAssignments() error {
+	rides := []*Ride{}
+	if err := db.Select(&rides, "SELECT * FROM rides WHERE chair_id IS NOT NULL ORDER BY updated_at DESC"); err != nil {
+		slog.Error("loadLatestRideToChairAssignments", "error", err)
+		return err
+	}
+
+	chairIdToLatestRideIdMutex.Lock()
+	defer chairIdToLatestRideIdMutex.Unlock()
+
+	chairIdToLatestRideId = make(map[string]*Ride)
+	for _, ride := range rides {
+		if _, ok := chairIdToLatestRideId[ride.ChairID.String]; ok {
+			continue
+		}
+		chairIdToLatestRideId[ride.ChairID.String] = ride
+	}
+	return nil
+}
+
+func assignRideToChair(chairId string, ride Ride) {
+	chairIdToLatestRideIdMutex.Lock()
+	defer chairIdToLatestRideIdMutex.Unlock()
+
+	chairIdToLatestRideId[chairId] = &ride
+}
+
+func getLatestRideByChairId(chairId string) (*Ride, bool) {
+	chairIdToLatestRideIdMutex.RLock()
+	defer chairIdToLatestRideIdMutex.RUnlock()
+	ride, ok := chairIdToLatestRideId[chairId]
+
+	return ride, ok
+}
 
 func runMatching() {
 	ctx := context.Background()
@@ -50,6 +89,10 @@ func runMatching() {
 			matchedId = chair.ChairID
 		}
 	}
+	if matchedId == "" {
+		slog.Error("no matched chair")
+		return
+	}
 
 	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
 		slog.Error("failed to update ride", "error", err)
@@ -60,6 +103,21 @@ func runMatching() {
 		slog.Error("failed to update chairs", "error", err)
 		return
 	}
-	slog.Info("matched", "ride_id", ride.ID, "chair_id", matchedId)
+
+	newRide := Ride{
+		ID:                   ride.ID,
+		UserID:               ride.UserID,
+		ChairID:              sql.NullString{String: matchedId, Valid: true},
+		PickupLatitude:       ride.PickupLatitude,
+		PickupLongitude:      ride.PickupLongitude,
+		DestinationLatitude:  ride.DestinationLatitude,
+		DestinationLongitude: ride.DestinationLongitude,
+		Evaluation:           ride.Evaluation,
+		CreatedAt:            ride.CreatedAt,
+		UpdatedAt:            ride.UpdatedAt, // not need to update "updatedAt"
+	}
+
+	slog.Info("matched", "chair_id", matchedId, "ride_id", ride.ID)
+	assignRideToChair(matchedId, newRide)
 	tx.Commit()
 }
