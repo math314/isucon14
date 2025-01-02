@@ -172,7 +172,7 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 		ChairSentAt: nil,
 	}
 	updateLatestRideStatusCacheMap(rideStatus)
-	buildAndAppendChairGetNotificationResponseData(ctx, tx, rideStatus)
+	buildAndAppendChairGetNotificationResponseData(ctx, tx, ride_id, status)
 
 	return nil
 }
