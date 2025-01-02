@@ -92,7 +92,7 @@ func takeLatestUnsentNotificationResponseDataToChair(chairID string) *chairGetNo
 	}
 }
 
-var NoChairAssigned = fmt.Errorf("no chair assigned")
+var ErrNoChairAssigned = fmt.Errorf("no chair assigned")
 
 func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatus *RideStatus) (*chairGetNotificationResponseData, error) {
 	ride := &Ride{}
@@ -102,7 +102,8 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 	}
 
 	if !ride.ChairID.Valid {
-		return nil, NoChairAssigned
+		slog.Info("buildChairGetNotificationResponseData chair is not assigned yet", "ride", *ride)
+		return nil, ErrNoChairAssigned
 	}
 
 	user := &User{}
@@ -132,7 +133,7 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatus *RideStatus) error {
 	responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideStatus)
 	if err != nil {
-		if errors.Is(err, NoChairAssigned) {
+		if errors.Is(err, ErrNoChairAssigned) {
 			return nil
 		} else {
 			return err
@@ -175,7 +176,14 @@ func insertRideStatusWithoutTransaction(ctx context.Context, ride_id, status str
 	}
 	defer tx.Rollback()
 
-	return insertRideStatus(ctx, tx, ride_id, status)
+	if err := insertRideStatus(ctx, tx, ride_id, status); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func updateLatestRideStatusCacheMap(rideStatus *RideStatus) {
