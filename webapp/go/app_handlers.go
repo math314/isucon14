@@ -994,7 +994,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		skip := false
 		for _, ride := range rides {
 			// 過去にライドが存在し、かつ、それが完了していない場合はスキップ
-			status, err := getLatestRideStatus(ctx, tx, ride.ID)
+			status, err := getLatestRideStatusFromCache(ride.ID)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, err)
 				return
