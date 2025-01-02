@@ -97,16 +97,6 @@ func runMatching() {
 		return
 	}
 
-	chairBeforeUpdate := &Chair{}
-	if err := tx.GetContext(ctx, chairBeforeUpdate, `SELECT * FROM chairs WHERE id = ?`, matchedId); err != nil {
-		slog.Error("failed to get chair", "error", err)
-		return
-	}
-	if !chairBeforeUpdate.IsFree {
-		slog.Error("chair is not free but considered as free for some reasons", "chair_id", matchedId)
-		return
-	}
-
 	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
 		slog.Error("failed to update ride", "error", err)
 		return
@@ -141,10 +131,6 @@ func runMatching() {
 		slog.Error("failed to commit tx", "error", err)
 		return
 	}
-
-	updatedChair := &Chair{}
-	db.GetContext(ctx, updatedChair, `SELECT * FROM chairs WHERE id = ?`, matchedId)
-	slog.Info("updatedChair value: ", "updatedChair", *updatedChair)
 
 	slog.Info("runMatching finished")
 }
