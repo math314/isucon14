@@ -105,7 +105,7 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 	}
 
 	if !ride.ChairID.Valid {
-		slog.Info("buildChairGetNotificationResponseData chair is not assigned yet", "ride", *ride)
+		slog.Info("buildChairGetNotificationResponseData chair is not assigned yet", "ride", *ride, "rideStatus", *rideStatus)
 		return nil, ErrNoChairAssigned
 	}
 
