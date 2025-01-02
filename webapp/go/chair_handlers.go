@@ -53,14 +53,16 @@ func loadLatestRideStatusCacheMap() error {
 }
 
 var unsentRideStatusesToChairRWMutex = sync.RWMutex{}
-var unsentRideStatusesToChair map[string](chan *chairGetNotificationResponseData) = make(map[string](chan *chairGetNotificationResponseData))
+var unsentRideStatusesToChairChan map[string](chan *chairGetNotificationResponseData) = make(map[string](chan *chairGetNotificationResponseData))
+var sentLastRideStatusToChair map[string]*chairGetNotificationResponseData = make(map[string]*chairGetNotificationResponseData)
 
 func loadUnsentRideStatusesToChair() error {
 	unsentRideStatusesToChairRWMutex.Lock()
 	defer unsentRideStatusesToChairRWMutex.Unlock()
 
 	// all notifications should be sent before the server termination
-	unsentRideStatusesToChair = make(map[string](chan *chairGetNotificationResponseData))
+	unsentRideStatusesToChairChan = make(map[string](chan *chairGetNotificationResponseData))
+	sentLastRideStatusToChair = make(map[string]*chairGetNotificationResponseData)
 
 	return nil
 }
@@ -69,26 +71,27 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	unsentRideStatusesToChairRWMutex.Lock()
 	defer unsentRideStatusesToChairRWMutex.Unlock()
 
-	if _, ok := unsentRideStatusesToChair[chairID]; !ok {
-		unsentRideStatusesToChair[chairID] = make(chan *chairGetNotificationResponseData, 10)
+	if _, ok := unsentRideStatusesToChairChan[chairID]; !ok {
+		unsentRideStatusesToChairChan[chairID] = make(chan *chairGetNotificationResponseData, 10)
 	}
-	unsentRideStatusesToChair[chairID] <- data
+	unsentRideStatusesToChairChan[chairID] <- data
 }
 
 func takeLatestUnsentNotificationResponseDataToChair(chairID string) *chairGetNotificationResponseData {
 	unsentRideStatusesToChairRWMutex.Lock()
 	defer unsentRideStatusesToChairRWMutex.Unlock()
 
-	c, ok := unsentRideStatusesToChair[chairID]
+	c, ok := unsentRideStatusesToChairChan[chairID]
 	if !ok {
 		return nil
 	}
 
 	select {
 	case data := <-c:
+		sentLastRideStatusToChair[chairID] = data
 		return data
 	default:
-		return nil
+		return sentLastRideStatusToChair[chairID]
 	}
 }
 
