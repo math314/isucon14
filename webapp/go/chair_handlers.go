@@ -74,7 +74,7 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	if _, ok := unsentRideStatusesToChairChan[chairID]; !ok {
 		unsentRideStatusesToChairChan[chairID] = make(chan *chairGetNotificationResponseData, 10)
 	}
-	slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
+	// // slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
 	unsentRideStatusesToChairChan[chairID] <- data
 }
 
@@ -107,7 +107,7 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 	}
 
 	if !ride.ChairID.Valid {
-		slog.Info("buildChairGetNotificationResponseData chair is not assigned yet", "ride", *ride, "rideStatus", rideStatus)
+		// slog.Info("buildChairGetNotificationResponseData chair is not assigned yet", "ride", *ride, "rideStatus", rideStatus)
 		return nil, nil, ErrNoChairAssigned
 	}
 
@@ -133,7 +133,7 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		},
 		Status: rideStatus,
 	}
-	slog.Info("buildChairGetNotificationResponseData", "data", b)
+	// slog.Info("buildChairGetNotificationResponseData", "data", b)
 
 	return ride, b, nil
 }
