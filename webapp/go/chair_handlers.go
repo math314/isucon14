@@ -175,14 +175,6 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chair := ctx.Value("chair").(*Chair)
-
-	tx, err := db.Beginx()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer tx.Rollback()
-
 	updatedAt := time.Now()
 
 	// メモリ上を更新する
@@ -219,24 +211,39 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 
 		if status != "COMPLETED" && status != "CANCELED" {
 			if req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && status == "ENROUTE" {
+				tx, err := db.Beginx()
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					return
+				}
+				defer tx.Rollback()
 				if err := insertRideStatus(ctx, tx, ride.ID, "PICKUP"); err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					return
+				}
+				if err := tx.Commit(); err != nil {
 					writeError(w, http.StatusInternalServerError, err)
 					return
 				}
 			}
 
 			if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING" {
+				tx, err := db.Beginx()
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					return
+				}
+				defer tx.Rollback()
 				if err := insertRideStatus(ctx, tx, ride.ID, "ARRIVED"); err != nil {
+					writeError(w, http.StatusInternalServerError, err)
+					return
+				}
+				if err := tx.Commit(); err != nil {
 					writeError(w, http.StatusInternalServerError, err)
 					return
 				}
 			}
 		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
 	}
 
 	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
