@@ -78,21 +78,21 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	unsentRideStatusesToChairChan[chairID] <- data
 }
 
-func takeLatestUnsentNotificationResponseDataToChair(chairID string) *chairGetNotificationResponseData {
+func takeLatestUnsentNotificationResponseDataToChair(chairID string) (*chairGetNotificationResponseData, bool) {
 	unsentRideStatusesToChairRWMutex.Lock()
 	defer unsentRideStatusesToChairRWMutex.Unlock()
 
 	c, ok := unsentRideStatusesToChairChan[chairID]
 	if !ok {
-		return nil
+		return nil, false
 	}
 
 	select {
 	case data := <-c:
 		sentLastRideStatusToChair[chairID] = data
-		return data
+		return data, true
 	default:
-		return sentLastRideStatusToChair[chairID]
+		return sentLastRideStatusToChair[chairID], false
 	}
 }
 
