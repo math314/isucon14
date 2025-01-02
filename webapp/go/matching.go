@@ -45,7 +45,11 @@ func getLatestRideByChairId(chairId string) (Ride, bool) {
 	defer chairIdToLatestRideIdMutex.RUnlock()
 	ride, ok := chairIdToLatestRideId[chairId]
 
-	slog.Info("getLatestRideByChairId", "chair_id", chairId, "ride_id", ride.ID)
+	id := ""
+	if ok {
+		id = ride.ID
+	}
+	slog.Info("getLatestRideByChairId", "chair_id", chairId, "ride_id", id)
 
 	return *ride, ok
 }
