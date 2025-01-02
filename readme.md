@@ -23,5 +23,10 @@ git checkout master -f
 git branch --set-upstream-to origin/master
 ```
 
-memo:
-https://gist.github.com/math314/814ae9021e2a01a40d9cc1f6fc2411bc
+
+
+https://github.com/takonomura/isucon14/blob/master/scripts/sql-performance.sh
+
+
+https://stackoverflow.com/questions/42758188/how-to-flush-performance-schema-stats-without-restarting-mysql
+
