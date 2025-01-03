@@ -915,13 +915,6 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 
 	coordinate := Coordinate{Latitude: lat, Longitude: lon}
 
-	tx, err := db.Beginx()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer tx.Rollback()
-
 	chairCacheMapRWMutex.RLock()
 	chairLocationCacheMapRWMutex.RLock()
 	chairIdToLatestRideIdMutex.RLock()
@@ -962,10 +955,10 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	chairCacheMapRWMutex.RUnlock()
-	chairLocationCacheMapRWMutex.RUnlock()
-	chairIdToLatestRideIdMutex.RUnlock()
 	latestRideStatusCacheMapRWMutex.RUnlock()
+	chairIdToLatestRideIdMutex.RUnlock()
+	chairLocationCacheMapRWMutex.RUnlock()
+	chairCacheMapRWMutex.RUnlock()
 
 	retrievedAt := time.Now()
 
