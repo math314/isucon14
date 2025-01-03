@@ -939,15 +939,13 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			slog.Info("  appGetNearbyChairs chair loop - too far", "chair", chair, "coordinate", coordinate, "loc", loc, "currentDist", currentDist, "distance", distance)
 			continue
 		}
-		ride, ok := chairIdToLatestRideId[chair.ID]
-		if !ok {
-			slog.Info("  appGetNearbyChairs chair loop - no ride found", "coordinate", coordinate, "chair", chair)
-			continue
-		}
-		rideStatus, ok := latestRideStatusCacheMap[ride.ID]
-		if ok && rideStatus.Status != "COMPLETED" {
-			slog.Info("  appGetNearbyChairs chair loop - ride status found but not completed", "coordinate", coordinate, "chair", chair, "ride", ride, "rideStatus", rideStatus)
-			continue
+		ride, rideFound := chairIdToLatestRideId[chair.ID]
+		if rideFound {
+			rideStatus, rideStatusFound := latestRideStatusCacheMap[ride.ID]
+			if rideStatusFound && rideStatus.Status != "COMPLETED" {
+				slog.Info("  appGetNearbyChairs chair loop - ride status found but not completed", "coordinate", coordinate, "chair", chair, "ride", ride, "rideStatus", rideStatus)
+				continue
+			}
 		}
 
 		nearbyChairs = append(nearbyChairs, appGetNearbyChairsResponseChair{
@@ -968,7 +966,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 
 	retrievedAt := time.Now()
 
-	slog.Info("appGetNearbyChairs - result", "nearbyChairs", nearbyChairs)
+	slog.Info("appGetNearbyChairs - result", "coordinate", coordinate, "distance", distance, "nearbyChairs", nearbyChairs)
 
 	writeJSON(w, http.StatusOK, &appGetNearbyChairsResponse{
 		Chairs:      nearbyChairs,
