@@ -16,10 +16,7 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 	}
 
 	if newNotification && nextData.Status == "COMPLETED" {
-		if _, err := db.ExecContext(
-			ctx,
-			`UPDATE chairs SET is_free = TRUE WHERE id = (SELECT chair_id FROM rides WHERE id = ?)`,
-			nextData.RideID); err != nil {
+		if _, err := db.ExecContext(ctx, `UPDATE chairs SET is_free = TRUE WHERE id = ?`, chair.ID); err != nil {
 			return nil, err
 		}
 	}
