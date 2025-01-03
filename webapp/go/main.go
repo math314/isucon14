@@ -155,16 +155,15 @@ func setup() http.Handler {
 		slog.Warn("not use matching")
 	}
 
-	if err := reloadLatestChairLocations(db); err != nil {
-		slog.Error("failed to reload latest chair locations", "error", err)
-	}
-
 	if err := loadChairLocationCache(context.Background()); err != nil {
 		slog.Error("failed to load chair location cache", "error", err)
 	}
 
 	if err := loadLatestRideStatusCacheMap(); err != nil {
 		slog.Error("failed to load latest ride status cache", "error", err)
+	}
+	if err := loadChairCacheMap(); err != nil {
+		slog.Error("failed to load chair cache", "error", err)
 	}
 	if err := loadLatestRideToChairAssignments(); err != nil {
 		slog.Error("failed to load latest ride to chair assignments", "error", err)
@@ -216,13 +215,6 @@ func setup() http.Handler {
 	// 	mux.HandleFunc("GET /api/internal/matching", internalGetMatching)
 	// }
 
-	go func() {
-		ticker := time.NewTicker(1 * time.Second)
-		for range ticker.C {
-			reloadLatestChairLocations(db)
-		}
-	}()
-
 	return mux
 }
 
@@ -269,17 +261,17 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := reloadLatestChairLocations(db); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
 	if err := loadChairLocationCache(ctx); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	if err := loadLatestRideStatusCacheMap(); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := loadChairCacheMap(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

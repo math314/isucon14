@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -27,37 +26,6 @@ type appPostUsersRequest struct {
 type appPostUsersResponse struct {
 	ID             string `json:"id"`
 	InvitationCode string `json:"invitation_code"`
-}
-
-var latestChairLocationsMutex = &sync.RWMutex{}
-var latestChairLocations = map[string]ChairLocationLatest{}
-
-func reloadLatestChairLocations(db *sqlx.DB) error {
-	chairLocations := []ChairLocationLatest{}
-	if err := db.Select(&chairLocations, `SELECT * FROM chair_locations_latest`); err != nil {
-		return err
-	}
-
-	latestChairLocationsMutex.Lock()
-	defer latestChairLocationsMutex.Unlock()
-
-	latestChairLocations = map[string]ChairLocationLatest{}
-	for _, loc := range chairLocations {
-		latestChairLocations[loc.ChairID] = loc
-	}
-
-	return nil
-}
-
-func getLatestChairLocation(chairID string) *ChairLocationLatest {
-	latestChairLocationsMutex.RLock()
-	defer latestChairLocationsMutex.RUnlock()
-
-	loc, ok := latestChairLocations[chairID]
-	if !ok {
-		return nil
-	}
-	return &loc
 }
 
 func appPostUsers(w http.ResponseWriter, r *http.Request) {
@@ -916,7 +884,6 @@ type LatLon struct {
 }
 
 func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	latStr := r.URL.Query().Get("latitude")
 	lonStr := r.URL.Query().Get("longitude")
 	distanceStr := r.URL.Query().Get("distance")
@@ -948,64 +915,39 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 
 	coordinate := Coordinate{Latitude: lat, Longitude: lon}
 
-	tx, err := db.Beginx()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer tx.Rollback()
+	// slog.Info("appGetNearbyChairs - start", "coordinate", coordinate, "distance", distance)
 
-	chairs := []Chair{}
-	err = tx.SelectContext(
-		ctx,
-		&chairs,
-		`SELECT * FROM chairs WHERE is_active = 1`,
-	)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
+	retrievedAt := time.Now().Add(-1 * time.Millisecond)
+
+	chairCacheMapRWMutex.RLock()
+	chairLocationCacheMapRWMutex.RLock()
+	chairIdToLatestRideIdMutex.RLock()
+	latestRideStatusCacheMapRWMutex.RLock()
 
 	nearbyChairs := []appGetNearbyChairsResponseChair{}
-	for _, chair := range chairs {
-
-		// 最新の位置情報を取得
-		chairLocation := &LatLon{}
-		// use getLatestChairLocation
-		if latestChairLocation := getLatestChairLocation(chair.ID); latestChairLocation == nil {
-			continue
-		} else {
-			chairLocation = &LatLon{
-				Lat: latestChairLocation.Latitude,
-				Lon: latestChairLocation.Longitude,
-			}
-		}
-
-		if calculateDistance(coordinate.Latitude, coordinate.Longitude, chairLocation.Lat, chairLocation.Lon) > distance {
+	for _, chair := range chairCacheMap {
+		// slog.Info("  appGetNearbyChairs chair loop", "coordinate", coordinate, "chair", chair)
+		if !chair.IsActive || !chair.IsFree {
+			// slog.Info("  appGetNearbyChairs chair loop - not active or not free", "coordinate", coordinate, "chair", chair)
 			continue
 		}
-
-		rides := []*Ride{}
-		if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id = ? ORDER BY created_at DESC LIMIT 1`, chair.ID); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-
-		skip := false
-		for _, ride := range rides {
-			// 過去にライドが存在し、かつ、それが完了していない場合はスキップ
-			status, err := getLatestRideStatus(ctx, tx, ride.ID)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
-			if status != "COMPLETED" {
-				skip = true
-				break
-			}
-		}
-		if skip {
+		loc, ok := chairLocationCacheMap[chair.ID]
+		if !ok {
+			// slog.Info("  appGetNearbyChairs chair loop - no location found", "coordinate", coordinate, "chair", chair)
 			continue
+		}
+		currentDist := calculateDistance(coordinate.Latitude, coordinate.Longitude, loc.Latitude, loc.Longitude)
+		if currentDist > distance {
+			// slog.Info("  appGetNearbyChairs chair loop - too far", "chair", chair, "coordinate", coordinate, "loc", loc, "currentDist", currentDist, "distance", distance)
+			continue
+		}
+		ride, rideFound := chairIdToLatestRideId[chair.ID]
+		if rideFound {
+			rideStatus, rideStatusFound := latestRideStatusCacheMap[ride.ID]
+			if rideStatusFound && rideStatus.Status != "COMPLETED" {
+				// slog.Info("  appGetNearbyChairs chair loop - ride status found but not completed", "coordinate", coordinate, "chair", chair, "ride", ride, "rideStatus", rideStatus)
+				continue
+			}
 		}
 
 		nearbyChairs = append(nearbyChairs, appGetNearbyChairsResponseChair{
@@ -1013,22 +955,18 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			Name:  chair.Name,
 			Model: chair.Model,
 			CurrentCoordinate: Coordinate{
-				Latitude:  chairLocation.Lat,
-				Longitude: chairLocation.Lon,
+				Latitude:  loc.Latitude,
+				Longitude: loc.Longitude,
 			},
 		})
 	}
 
-	retrievedAt := &time.Time{}
-	err = tx.GetContext(
-		ctx,
-		retrievedAt,
-		`SELECT CURRENT_TIMESTAMP(6)`,
-	)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
+	latestRideStatusCacheMapRWMutex.RUnlock()
+	chairIdToLatestRideIdMutex.RUnlock()
+	chairLocationCacheMapRWMutex.RUnlock()
+	chairCacheMapRWMutex.RUnlock()
+
+	// slog.Info("appGetNearbyChairs - result", "coordinate", coordinate, "distance", distance, "nearbyChairs", nearbyChairs)
 
 	writeJSON(w, http.StatusOK, &appGetNearbyChairsResponse{
 		Chairs:      nearbyChairs,
