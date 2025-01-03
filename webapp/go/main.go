@@ -166,6 +166,9 @@ func setup() http.Handler {
 	if err := loadLatestRideStatusCacheMap(); err != nil {
 		slog.Error("failed to load latest ride status cache", "error", err)
 	}
+	if err := loadChairCacheMap(); err != nil {
+		slog.Error("failed to load chair cache", "error", err)
+	}
 	if err := loadLatestRideToChairAssignments(); err != nil {
 		slog.Error("failed to load latest ride to chair assignments", "error", err)
 	}
@@ -280,6 +283,11 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := loadLatestRideStatusCacheMap(); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := loadChairCacheMap(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

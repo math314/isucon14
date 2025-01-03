@@ -955,56 +955,32 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	chairs := []Chair{}
-	err = tx.SelectContext(
-		ctx,
-		&chairs,
-		`SELECT * FROM chairs WHERE is_active = 1`,
-	)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
+	chairCacheMapRWMutex.RLock()
+	latestChairLocationsMutex.RLock()
+	chairIdToLatestRideIdMutex.RLock()
+	latestRideStatusCacheMapRWMutex.RLock()
 
 	nearbyChairs := []appGetNearbyChairsResponseChair{}
-	for _, chair := range chairs {
-
-		// 最新の位置情報を取得
-		chairLocation := &LatLon{}
-		// use getLatestChairLocation
-		if latestChairLocation := getLatestChairLocation(chair.ID); latestChairLocation == nil {
-			continue
-		} else {
-			chairLocation = &LatLon{
-				Lat: latestChairLocation.Latitude,
-				Lon: latestChairLocation.Longitude,
-			}
-		}
-
-		if calculateDistance(coordinate.Latitude, coordinate.Longitude, chairLocation.Lat, chairLocation.Lon) > distance {
+	for _, chair := range chairCacheMap {
+		if !chair.IsActive || !chair.IsFree {
 			continue
 		}
-
-		rides := []*Ride{}
-		if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id = ? ORDER BY created_at DESC LIMIT 1`, chair.ID); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
+		loc, ok := latestChairLocations[chair.ID]
+		if !ok {
+			continue
 		}
-
-		skip := false
-		for _, ride := range rides {
-			// 過去にライドが存在し、かつ、それが完了していない場合はスキップ
-			status, err := getLatestRideStatus(ctx, tx, ride.ID)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
-			if status != "COMPLETED" {
-				skip = true
-				break
-			}
+		if calculateDistance(coordinate.Latitude, coordinate.Longitude, loc.Latitude, loc.Longitude) > distance {
+			continue
 		}
-		if skip {
+		ride, ok := chairIdToLatestRideId[chair.ID]
+		if !ok {
+			continue
+		}
+		rideStatus, ok := latestRideStatusCacheMap[ride.ID]
+		if !ok {
+			continue
+		}
+		if rideStatus.Status != "COMPLETED" {
 			continue
 		}
 
@@ -1013,22 +989,18 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			Name:  chair.Name,
 			Model: chair.Model,
 			CurrentCoordinate: Coordinate{
-				Latitude:  chairLocation.Lat,
-				Longitude: chairLocation.Lon,
+				Latitude:  loc.Latitude,
+				Longitude: loc.Longitude,
 			},
 		})
 	}
 
-	retrievedAt := &time.Time{}
-	err = tx.GetContext(
-		ctx,
-		retrievedAt,
-		`SELECT CURRENT_TIMESTAMP(6)`,
-	)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
+	chairCacheMapRWMutex.RUnlock()
+	latestChairLocationsMutex.RUnlock()
+	chairIdToLatestRideIdMutex.RUnlock()
+	latestRideStatusCacheMapRWMutex.RUnlock()
+
+	retrievedAt := time.Now()
 
 	writeJSON(w, http.StatusOK, &appGetNearbyChairsResponse{
 		Chairs:      nearbyChairs,

@@ -19,6 +19,9 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 		if _, err := db.ExecContext(ctx, `UPDATE chairs SET is_free = TRUE WHERE id = ?`, chair.ID); err != nil {
 			return nil, err
 		}
+		if err := updateIsFreeInCache(chair.ID, true); err != nil {
+			return nil, err
+		}
 	}
 
 	if newNotification {

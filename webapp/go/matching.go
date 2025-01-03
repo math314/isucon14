@@ -107,6 +107,11 @@ func runMatching() {
 		return
 	}
 
+	if err := updateIsFreeInCache(matchedId, false); err != nil {
+		slog.Error("failed to update is free in cache", "error", err)
+		return
+	}
+
 	newRide := Ride{
 		ID:                   ride.ID,
 		UserID:               ride.UserID,

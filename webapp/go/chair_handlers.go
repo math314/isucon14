@@ -29,6 +29,68 @@ type chairPostChairsResponse struct {
 var chairLocationCacheMapRWMutex = sync.RWMutex{}
 var chairLocationCacheMap map[string]*ChairLocationLatest = make(map[string]*ChairLocationLatest)
 
+var chairCacheMapRWMutex = sync.RWMutex{}
+var chairCacheMap map[string]*Chair = make(map[string]*Chair)
+
+func loadChairCacheMap() error {
+	chairCacheMapRWMutex.Lock()
+	defer chairCacheMapRWMutex.Unlock()
+
+	chairs := []*Chair{}
+	if err := db.Select(&chairs, "SELECT * FROM chairs"); err != nil {
+		slog.Error("loadChairCacheMap", "error", err)
+		return err
+	}
+
+	chairCacheMap = make(map[string]*Chair)
+	for _, chair := range chairs {
+		chairCacheMap[chair.ID] = chair
+	}
+	return nil
+}
+
+func getChairByID(chairID string) (*Chair, error) {
+	chairCacheMapRWMutex.RLock()
+	defer chairCacheMapRWMutex.RUnlock()
+
+	chair, ok := chairCacheMap[chairID]
+	if !ok {
+		return nil, errors.New("chair not found")
+	}
+	return chair, nil
+}
+
+func insertOrUpdateChairCacheMap(chair Chair) {
+	chairCacheMapRWMutex.Lock()
+	defer chairCacheMapRWMutex.Unlock()
+
+	chairCacheMap[chair.ID] = &chair
+}
+
+func updateIsActiveInCache(chairId string, isActive bool) error {
+	chairCacheMapRWMutex.Lock()
+	defer chairCacheMapRWMutex.Unlock()
+	chair, err := getChairByID(chairId)
+	if err != nil {
+		return err
+	}
+
+	chair.IsActive = isActive
+	return nil
+}
+
+func updateIsFreeInCache(chairId string, isFree bool) error {
+	chairCacheMapRWMutex.Lock()
+	defer chairCacheMapRWMutex.Unlock()
+	chair, err := getChairByID(chairId)
+	if err != nil {
+		return err
+	}
+
+	chair.IsFree = isFree
+	return nil
+}
+
 var latestRideStatusCacheMapRWMutex = sync.RWMutex{}
 var latestRideStatusCacheMap map[string]*RideStatus = make(map[string]*RideStatus)
 
@@ -237,15 +299,29 @@ func chairPostChairs(w http.ResponseWriter, r *http.Request) {
 	chairID := ulid.Make().String()
 	accessToken := secureRandomStr(32)
 
+	now := time.Now()
+	newChair := &Chair{
+		ID:          chairID,
+		OwnerID:     owner.ID,
+		Name:        req.Name,
+		Model:       req.Model,
+		IsActive:    false,
+		AccessToken: accessToken,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		IsFree:      true,
+	}
+
 	_, err := db.ExecContext(
 		ctx,
-		"INSERT INTO chairs (id, owner_id, name, model, is_active, access_token) VALUES (?, ?, ?, ?, ?, ?)",
-		chairID, owner.ID, req.Name, req.Model, false, accessToken,
+		"INSERT INTO chairs (id, owner_id, name, model, is_active, access_token, created_at, updated_at, is_free) VALUES (?, ?, ?, ?, ?, ?, ?, ? ,?)",
+		newChair.ID, newChair.OwnerID, newChair.Name, newChair.Model, newChair.IsActive, newChair.AccessToken, newChair.CreatedAt, newChair.UpdatedAt, newChair.IsFree,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	insertOrUpdateChairCacheMap(*newChair)
 
 	http.SetCookie(w, &http.Cookie{
 		Path:  "/",
@@ -275,6 +351,11 @@ func chairPostActivity(w http.ResponseWriter, r *http.Request) {
 
 	_, err := db.ExecContext(ctx, "UPDATE chairs SET is_active = ? WHERE id = ?", req.IsActive, chair.ID)
 	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := updateIsActiveInCache(chair.ID, req.IsActive); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
