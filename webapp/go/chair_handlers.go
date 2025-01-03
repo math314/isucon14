@@ -33,14 +33,11 @@ var chairCacheMapRWMutex = sync.RWMutex{}
 var chairCacheMap map[string]*Chair = make(map[string]*Chair)
 
 func loadChairCacheMap() error {
-	slog.Info("loadChairCacheMap started")
-
 	chairCacheMapRWMutex.Lock()
 	defer chairCacheMapRWMutex.Unlock()
 
 	chairs := []*Chair{}
 	if err := db.Select(&chairs, "SELECT * FROM chairs"); err != nil {
-		slog.Error("loadChairCacheMap", "error", err)
 		return err
 	}
 
@@ -48,63 +45,52 @@ func loadChairCacheMap() error {
 	for _, chair := range chairs {
 		chairCacheMap[chair.ID] = chair
 	}
-	slog.Info("loadChairCacheMap loaded", "chairs", chairs)
 	return nil
 }
 
-func getChairByID(chairID string) (*Chair, error) {
-	slog.Info("getChairByID started")
+// func getChairByID(chairID string) (*Chair, error) {
+// 	chairCacheMapRWMutex.RLock()
+// 	defer chairCacheMapRWMutex.RUnlock()
 
-	chairCacheMapRWMutex.RLock()
-	defer chairCacheMapRWMutex.RUnlock()
+// 	chair, ok := chairCacheMap[chairID]
+// 	if !ok {
+// 		return nil, errors.New("chair not found")
+// 	}
 
-	chair, ok := chairCacheMap[chairID]
-	if !ok {
-		slog.Info("getChairByID finished", "chair", chair)
-		return nil, errors.New("chair not found")
-	}
-
-	slog.Info("getChairByID finished", "chair", chair)
-	return chair, nil
-}
+// 	return chair, nil
+// }
 
 func insertOrUpdateChairCacheMap(chair Chair) {
-	slog.Info("insertOrUpdateChairCacheMap started")
 	chairCacheMapRWMutex.Lock()
 	defer chairCacheMapRWMutex.Unlock()
 
 	chairCacheMap[chair.ID] = &chair
-	slog.Info("insertOrUpdateChairCacheMap finished")
 }
 
 func updateIsActiveInCache(chairId string, isActive bool) error {
-	slog.Info("updateIsActiveInCache started")
 
 	chairCacheMapRWMutex.Lock()
 	defer chairCacheMapRWMutex.Unlock()
-	chair, err := getChairByID(chairId)
-	if err != nil {
-		slog.Info("updateIsActiveInCache finished")
-		return err
+
+	chair, ok := chairCacheMap[chairId]
+	if !ok {
+		return errors.New("chair not found")
 	}
 
 	chair.IsActive = isActive
-	slog.Info("updateIsActiveInCache finished")
 	return nil
 }
 
 func updateIsFreeInCache(chairId string, isFree bool) error {
-	slog.Info("updateIsFreeInCache started")
 	chairCacheMapRWMutex.Lock()
 	defer chairCacheMapRWMutex.Unlock()
-	chair, err := getChairByID(chairId)
-	if err != nil {
-		slog.Info("updateIsFreeInCache finished")
-		return err
+
+	chair, ok := chairCacheMap[chairId]
+	if !ok {
+		return errors.New("chair not found")
 	}
 
 	chair.IsFree = isFree
-	slog.Info("updateIsFreeInCache finished")
 	return nil
 }
 
