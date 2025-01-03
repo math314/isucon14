@@ -923,7 +923,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	chairCacheMapRWMutex.RLock()
-	latestChairLocationsMutex.RLock()
+	chairLocationCacheMapRWMutex.RLock()
 	chairIdToLatestRideIdMutex.RLock()
 	latestRideStatusCacheMapRWMutex.RLock()
 
@@ -932,7 +932,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 		if !chair.IsActive || !chair.IsFree {
 			continue
 		}
-		loc, ok := latestChairLocations[chair.ID]
+		loc, ok := chairLocationCacheMap[chair.ID]
 		if !ok {
 			continue
 		}
@@ -963,7 +963,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chairCacheMapRWMutex.RUnlock()
-	latestChairLocationsMutex.RUnlock()
+	chairLocationCacheMapRWMutex.RUnlock()
 	chairIdToLatestRideIdMutex.RUnlock()
 	latestRideStatusCacheMapRWMutex.RUnlock()
 
