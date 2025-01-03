@@ -915,6 +915,8 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 
 	coordinate := Coordinate{Latitude: lat, Longitude: lon}
 
+	slog.Info("appGetNearbyChairs - start", "coordinate", coordinate, "distance", distance)
+
 	chairCacheMapRWMutex.RLock()
 	chairLocationCacheMapRWMutex.RLock()
 	chairIdToLatestRideIdMutex.RLock()
@@ -922,29 +924,29 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 
 	nearbyChairs := []appGetNearbyChairsResponseChair{}
 	for _, chair := range chairCacheMap {
-		slog.Info("appGetNearbyChairs chair loop", "chair", chair)
+		slog.Info("  appGetNearbyChairs chair loop", "chair", chair)
 		if !chair.IsActive || !chair.IsFree {
-			slog.Info("appGetNearbyChairs chair loop - not active or not free", "chair", chair)
+			slog.Info("  appGetNearbyChairs chair loop - not active or not free", "chair", chair)
 			continue
 		}
 		loc, ok := chairLocationCacheMap[chair.ID]
 		if !ok {
-			slog.Info("appGetNearbyChairs chair loop - no location found", "chair", chair)
+			slog.Info("  appGetNearbyChairs chair loop - no location found", "chair", chair)
 			continue
 		}
 		currentDist := calculateDistance(coordinate.Latitude, coordinate.Longitude, loc.Latitude, loc.Longitude)
 		if currentDist > distance {
-			slog.Info("appGetNearbyChairs chair loop - too far", "chair", chair)
+			slog.Info("  appGetNearbyChairs chair loop - too far", "chair", chair)
 			continue
 		}
 		ride, ok := chairIdToLatestRideId[chair.ID]
 		if !ok {
-			slog.Info("appGetNearbyChairs chair loop - no ride found", "chair", chair)
+			slog.Info("  appGetNearbyChairs chair loop - no ride found", "chair", chair)
 			continue
 		}
 		rideStatus, ok := latestRideStatusCacheMap[ride.ID]
 		if ok && rideStatus.Status != "COMPLETED" {
-			slog.Info("appGetNearbyChairs chair loop - ride status found but not completed", "chair", chair, "ride", ride, "rideStatus", rideStatus)
+			slog.Info("  appGetNearbyChairs chair loop - ride status found but not completed", "chair", chair, "ride", ride, "rideStatus", rideStatus)
 			continue
 		}
 
@@ -965,6 +967,8 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	chairCacheMapRWMutex.RUnlock()
 
 	retrievedAt := time.Now()
+
+	slog.Info("appGetNearbyChairs - result", "nearbyChairs", nearbyChairs)
 
 	writeJSON(w, http.StatusOK, &appGetNearbyChairsResponse{
 		Chairs:      nearbyChairs,
