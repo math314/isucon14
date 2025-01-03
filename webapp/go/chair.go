@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 )
 
 var ErrNoChairs = fmt.Errorf("no chairs")
@@ -24,9 +23,9 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 		}
 	}
 
-	if newNotification {
-		slog.Info("notification sent", "chair", chair, "data", nextData)
-	}
+	// if newNotification {
+	// 	slog.Info("notification sent", "chair", chair, "data", nextData)
+	// }
 
 	return nextData, nil
 }
