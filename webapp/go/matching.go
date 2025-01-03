@@ -58,8 +58,8 @@ func runMatching() {
 	defer tx.Rollback()
 
 	// MEMO: 一旦最も待たせているリクエストに適当な空いている椅子マッチさせる実装とする。おそらくもっといい方法があるはず…
-	ride := &Ride{}
-	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 1`); err != nil {
+	rides := []*Ride{}
+	if err := tx.GetContext(ctx, rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 20`); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return
 		}
@@ -67,71 +67,87 @@ func runMatching() {
 		return
 	}
 
-	slog.Info("runMatching started")
+	slog.Info("runMatching started", "rides", len(rides))
 
+	chairLocationCacheMapRWMutex.RLock()
+	chairCacheMapRWMutex.RLock()
 	latestChairLocations := []ChairLocationLatest{}
-	if err := tx.SelectContext(ctx, &latestChairLocations, "SELECT * FROM chair_locations_latest WHERE chair_id IN (SELECT id FROM chairs WHERE is_active = TRUE AND is_free = TRUE)"); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			slog.Info("no chairs")
-			return
+	for _, chair := range chairCacheMap {
+		if !chair.IsActive || !chair.IsFree {
+			continue
+		}
+		if cll, ok := chairLocationCacheMap[chair.ID]; ok {
+			latestChairLocations = append(latestChairLocations, *cll)
 		}
 	}
+	chairLocationCacheMapRWMutex.RUnlock()
+	chairCacheMapRWMutex.RUnlock()
 
 	if len(latestChairLocations) < 5 {
 		// slog.Info("too few chairs")
 		return
 	}
 
-	// nearest chair
-	matchedId := ""
-	nearest := 10000000
-	for _, chair := range latestChairLocations {
-		distance := abs(chair.Latitude-ride.PickupLatitude) + abs(chair.Longitude-ride.PickupLongitude)
-		if distance < nearest {
-			nearest = distance
-			matchedId = chair.ChairID
+	usedChairIds := map[string]struct{}{}
+	for _, ride := range rides {
+
+		// nearest chair
+		matchedId := ""
+		nearest := 10000000
+		for _, chair := range latestChairLocations {
+			if _, ok := usedChairIds[chair.ChairID]; ok {
+				continue
+			}
+
+			distance := abs(chair.Latitude-ride.PickupLatitude) + abs(chair.Longitude-ride.PickupLongitude)
+			if distance < nearest {
+				nearest = distance
+				matchedId = chair.ChairID
+			}
+		}
+		if matchedId == "" {
+			slog.Error("no matched chair")
+			break
+		}
+		usedChairIds[matchedId] = struct{}{}
+
+		if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
+			slog.Error("failed to update ride", "error", err)
+			return
+		}
+
+		if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 0 WHERE id = ?`, matchedId); err != nil {
+			slog.Error("failed to update chairs", "error", err)
+			return
+		}
+
+		if err := updateIsFreeInCache(matchedId, false); err != nil {
+			slog.Error("failed to update is free in cache", "error", err)
+			return
+		}
+
+		newRide := Ride{
+			ID:                   ride.ID,
+			UserID:               ride.UserID,
+			ChairID:              sql.NullString{String: matchedId, Valid: true},
+			PickupLatitude:       ride.PickupLatitude,
+			PickupLongitude:      ride.PickupLongitude,
+			DestinationLatitude:  ride.DestinationLatitude,
+			DestinationLongitude: ride.DestinationLongitude,
+			Evaluation:           ride.Evaluation,
+			CreatedAt:            ride.CreatedAt,
+			UpdatedAt:            ride.UpdatedAt, // not need to update "updatedAt"
+		}
+
+		slog.Info("matched", "chair_id", matchedId, "ride_id", ride.ID)
+		assignRideToChair(matchedId, newRide)
+
+		if err := buildAndAppendChairGetNotificationResponseData(ctx, tx, ride.ID, "MATCHING"); err != nil {
+			slog.Error("failed to build and append chair get notification response data", "error", err)
+			return
 		}
 	}
-	if matchedId == "" {
-		slog.Error("no matched chair")
-		return
-	}
 
-	if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
-		slog.Error("failed to update ride", "error", err)
-		return
-	}
-
-	if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 0 WHERE id = ?`, matchedId); err != nil {
-		slog.Error("failed to update chairs", "error", err)
-		return
-	}
-
-	if err := updateIsFreeInCache(matchedId, false); err != nil {
-		slog.Error("failed to update is free in cache", "error", err)
-		return
-	}
-
-	newRide := Ride{
-		ID:                   ride.ID,
-		UserID:               ride.UserID,
-		ChairID:              sql.NullString{String: matchedId, Valid: true},
-		PickupLatitude:       ride.PickupLatitude,
-		PickupLongitude:      ride.PickupLongitude,
-		DestinationLatitude:  ride.DestinationLatitude,
-		DestinationLongitude: ride.DestinationLongitude,
-		Evaluation:           ride.Evaluation,
-		CreatedAt:            ride.CreatedAt,
-		UpdatedAt:            ride.UpdatedAt, // not need to update "updatedAt"
-	}
-
-	slog.Info("matched", "chair_id", matchedId, "ride_id", ride.ID)
-	assignRideToChair(matchedId, newRide)
-
-	if err := buildAndAppendChairGetNotificationResponseData(ctx, tx, ride.ID, "MATCHING"); err != nil {
-		slog.Error("failed to build and append chair get notification response data", "error", err)
-		return
-	}
 	if err := tx.Commit(); err != nil {
 		slog.Error("failed to commit tx", "error", err)
 		return
