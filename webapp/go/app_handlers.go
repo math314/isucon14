@@ -883,6 +883,8 @@ type LatLon struct {
 	Lon int `db:"longitude"`
 }
 
+var rLockCount int = 0
+
 func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	latStr := r.URL.Query().Get("latitude")
 	lonStr := r.URL.Query().Get("longitude")
@@ -920,6 +922,9 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	chairIdToLatestRideIdMutex.RLock()
 	latestRideStatusCacheMapRWMutex.RLock()
 
+	rLockCount++
+	slog.Info("rLockCount", "count", rLockCount)
+
 	nearbyChairs := []appGetNearbyChairsResponseChair{}
 	for _, chair := range chairCacheMap {
 		if !chair.IsActive || !chair.IsFree {
@@ -954,6 +959,8 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 	}
+
+	rLockCount--
 
 	latestRideStatusCacheMapRWMutex.RUnlock()
 	chairIdToLatestRideIdMutex.RUnlock()
