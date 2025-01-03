@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -27,37 +26,6 @@ type appPostUsersRequest struct {
 type appPostUsersResponse struct {
 	ID             string `json:"id"`
 	InvitationCode string `json:"invitation_code"`
-}
-
-var latestChairLocationsMutex = &sync.RWMutex{}
-var latestChairLocations = map[string]ChairLocationLatest{}
-
-func reloadLatestChairLocations(db *sqlx.DB) error {
-	chairLocations := []ChairLocationLatest{}
-	if err := db.Select(&chairLocations, `SELECT * FROM chair_locations_latest`); err != nil {
-		return err
-	}
-
-	latestChairLocationsMutex.Lock()
-	defer latestChairLocationsMutex.Unlock()
-
-	latestChairLocations = map[string]ChairLocationLatest{}
-	for _, loc := range chairLocations {
-		latestChairLocations[loc.ChairID] = loc
-	}
-
-	return nil
-}
-
-func getLatestChairLocation(chairID string) *ChairLocationLatest {
-	latestChairLocationsMutex.RLock()
-	defer latestChairLocationsMutex.RUnlock()
-
-	loc, ok := latestChairLocations[chairID]
-	if !ok {
-		return nil
-	}
-	return &loc
 }
 
 func appPostUsers(w http.ResponseWriter, r *http.Request) {
@@ -916,7 +884,6 @@ type LatLon struct {
 }
 
 func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	latStr := r.URL.Query().Get("latitude")
 	lonStr := r.URL.Query().Get("longitude")
 	distanceStr := r.URL.Query().Get("distance")

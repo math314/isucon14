@@ -155,10 +155,6 @@ func setup() http.Handler {
 		slog.Warn("not use matching")
 	}
 
-	if err := reloadLatestChairLocations(db); err != nil {
-		slog.Error("failed to reload latest chair locations", "error", err)
-	}
-
 	if err := loadChairLocationCache(context.Background()); err != nil {
 		slog.Error("failed to load chair location cache", "error", err)
 	}
@@ -219,13 +215,6 @@ func setup() http.Handler {
 	// 	mux.HandleFunc("GET /api/internal/matching", internalGetMatching)
 	// }
 
-	go func() {
-		ticker := time.NewTicker(1 * time.Second)
-		for range ticker.C {
-			reloadLatestChairLocations(db)
-		}
-	}()
-
 	return mux
 }
 
@@ -268,11 +257,6 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := db.ExecContext(ctx, "UPDATE settings SET value = ? WHERE name = 'payment_gateway_url'", req.PaymentServer); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	if err := reloadLatestChairLocations(db); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
