@@ -883,8 +883,6 @@ type LatLon struct {
 	Lon int `db:"longitude"`
 }
 
-var rLockCount int = 0
-
 func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	latStr := r.URL.Query().Get("latitude")
 	lonStr := r.URL.Query().Get("longitude")
@@ -922,30 +920,31 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	chairIdToLatestRideIdMutex.RLock()
 	latestRideStatusCacheMapRWMutex.RLock()
 
-	rLockCount++
-	slog.Info("rLockCount", "count", rLockCount)
-
 	nearbyChairs := []appGetNearbyChairsResponseChair{}
 	for _, chair := range chairCacheMap {
+		slog.Info("appGetNearbyChairs chair loop", "chair", chair)
 		if !chair.IsActive || !chair.IsFree {
+			slog.Info("appGetNearbyChairs chair loop - not active or not free", "chair", chair)
 			continue
 		}
 		loc, ok := chairLocationCacheMap[chair.ID]
 		if !ok {
+			slog.Info("appGetNearbyChairs chair loop - no location found", "chair", chair)
 			continue
 		}
-		if calculateDistance(coordinate.Latitude, coordinate.Longitude, loc.Latitude, loc.Longitude) > distance {
+		currentDist := calculateDistance(coordinate.Latitude, coordinate.Longitude, loc.Latitude, loc.Longitude)
+		if currentDist > distance {
+			slog.Info("appGetNearbyChairs chair loop - too far", "chair", chair)
 			continue
 		}
 		ride, ok := chairIdToLatestRideId[chair.ID]
 		if !ok {
+			slog.Info("appGetNearbyChairs chair loop - no ride found", "chair", chair)
 			continue
 		}
 		rideStatus, ok := latestRideStatusCacheMap[ride.ID]
-		if !ok {
-			continue
-		}
-		if rideStatus.Status != "COMPLETED" {
+		if ok && rideStatus.Status != "COMPLETED" {
+			slog.Info("appGetNearbyChairs chair loop - ride status found but not completed", "chair", chair, "ride", ride, "rideStatus", rideStatus)
 			continue
 		}
 
@@ -959,8 +958,6 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 	}
-
-	rLockCount--
 
 	latestRideStatusCacheMapRWMutex.RUnlock()
 	chairIdToLatestRideIdMutex.RUnlock()
