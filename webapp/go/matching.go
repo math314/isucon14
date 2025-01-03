@@ -59,7 +59,7 @@ func runMatching() {
 
 	// MEMO: 一旦最も待たせているリクエストに適当な空いている椅子マッチさせる実装とする。おそらくもっといい方法があるはず…
 	rides := []*Ride{}
-	if err := tx.GetContext(ctx, rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 20`); err != nil {
+	if err := tx.GetContext(ctx, &rides, `SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 20`); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return
 		}
