@@ -65,17 +65,17 @@ func getChairByAccessToken(accessToken string) (*Chair, error) {
 	return chair, nil
 }
 
-// func getChairByID(chairID string) (*Chair, error) {
-// 	chairCacheMapRWMutex.RLock()
-// 	defer chairCacheMapRWMutex.RUnlock()
+func getChairByID(chairID string) (*Chair, error) {
+	chairCacheMapRWMutex.RLock()
+	defer chairCacheMapRWMutex.RUnlock()
 
-// 	chair, ok := chairCacheMap[chairID]
-// 	if !ok {
-// 		return nil, errors.New("chair not found")
-// 	}
+	chair, ok := chairCacheMap[chairID]
+	if !ok {
+		return nil, ErrNoChairs
+	}
 
-// 	return chair, nil
-// }
+	return chair, nil
+}
 
 func insertChairCacheMap(chair Chair) {
 	chairCacheMapRWMutex.Lock()

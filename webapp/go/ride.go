@@ -61,8 +61,8 @@ func getRideStatus(ctx context.Context, userID string) (appGetNotificationRespon
 	}
 
 	if ride.ChairID.Valid {
-		chair := &Chair{}
-		if err := tx.GetContext(ctx, chair, `SELECT * FROM chairs WHERE id = ?`, ride.ChairID); err != nil {
+		chair, err := getChairByID(ride.ChairID.String)
+		if err != nil {
 			return appGetNotificationResponseData{}, err
 		}
 
