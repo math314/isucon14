@@ -157,7 +157,7 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	if _, ok := unsentRideStatusesToChairChan[chairID]; !ok {
 		unsentRideStatusesToChairChan[chairID] = make(chan *chairGetNotificationResponseData, 10)
 	}
-	// // slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
+	slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
 	unsentRideStatusesToChairChan[chairID] <- data
 }
 
@@ -172,9 +172,14 @@ func takeLatestUnsentNotificationResponseDataToChair(chairID string) (*chairGetN
 
 	select {
 	case data := <-c:
+		slog.Info("takeLatestUnsentNotificationResponseDataToChair - new data", "chairID", chairID, "status", data.Status)
 		sentLastRideStatusToChair[chairID] = data
 		return data, true
 	default:
+		ret := sentLastRideStatusToChair[chairID]
+		if ret != nil {
+			slog.Info("takeLatestUnsentNotificationResponseDataToChair - existing data", "chairID", chairID, "status", ret.Status)
+		}
 		return sentLastRideStatusToChair[chairID], false
 	}
 }
@@ -193,8 +198,6 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		// slog.Info("buildChairGetNotificationResponseData chair is not assigned yet", "ride", *ride, "rideStatus", rideStatus)
 		return nil, nil, ErrNoChairAssigned
 	}
-
-	slog.Info("buildChairGetNotificationResponseData - update status", "chair", ride.ChairID, "currentStatus", rideStatus)
 
 	user := &User{}
 	if err := tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID); err != nil {
@@ -218,6 +221,8 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		},
 		Status: rideStatus,
 	}
+
+	slog.Info("buildChairGetNotificationResponseData - update status", "chair", ride.ChairID, "currentStatus", rideStatus)
 
 	return ride, b, nil
 }
