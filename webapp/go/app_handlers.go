@@ -710,6 +710,13 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		dataFromChannel, err := getRideStatusFromChannel(user.ID)
+		if dataFromChannel == nil {
+			slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
+		} else if d != *dataFromChannel {
+			slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
+		}
+
 		select {
 		case <-r.Context().Done():
 			return
