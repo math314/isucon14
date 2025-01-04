@@ -565,17 +565,17 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	for {
 		d, err := getChairNotification(ctx, chair)
 
-		b, _ := json.Marshal(d)
-		fmt.Fprintf(w, "data: %s\n", b)
-		w.(http.Flusher).Flush()
-
-		slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", d.Status)
-
-		if errors.Is(err, ErrNoChairs) {
-			continue
-		} else if err != nil {
+		if !errors.Is(err, ErrNoChairs) {
 			slog.Error("chairGetNotification", "error", err)
 			return
+		}
+
+		if d != nil {
+			b, _ := json.Marshal(d)
+			fmt.Fprintf(w, "data: %s\n", b)
+			w.(http.Flusher).Flush()
+
+			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", d.Status)
 		}
 
 		select {
