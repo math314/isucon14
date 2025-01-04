@@ -157,7 +157,7 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	if _, ok := unsentRideStatusesToChairChan[chairID]; !ok {
 		unsentRideStatusesToChairChan[chairID] = make(chan *chairGetNotificationResponseData, 10)
 	}
-	// // slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
+	slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
 	unsentRideStatusesToChairChan[chairID] <- data
 }
 
@@ -172,9 +172,14 @@ func takeLatestUnsentNotificationResponseDataToChair(chairID string) (*chairGetN
 
 	select {
 	case data := <-c:
+		slog.Info("takeLatestUnsentNotificationResponseDataToChair - new data", "chairID", chairID, "status", data.Status)
 		sentLastRideStatusToChair[chairID] = data
 		return data, true
 	default:
+		ret := sentLastRideStatusToChair[chairID]
+		if ret != nil {
+			slog.Info("takeLatestUnsentNotificationResponseDataToChair - existing data", "chairID", chairID, "status", ret.Status)
+		}
 		return sentLastRideStatusToChair[chairID], false
 	}
 }
@@ -216,7 +221,8 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		},
 		Status: rideStatus,
 	}
-	// slog.Info("buildChairGetNotificationResponseData", "data", b)
+
+	slog.Info("buildChairGetNotificationResponseData - update status", "chair", ride.ChairID, "currentStatus", rideStatus)
 
 	return ride, b, nil
 }
@@ -326,6 +332,7 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 		AppSentAt:   nil,
 		ChairSentAt: nil,
 	}
+
 	updateLatestRideStatusCacheMap(rideStatus)
 	buildAndAppendChairGetNotificationResponseData(ctx, tx, ride_id, status)
 	buildAndAppendAppGetNotificationResponseData(ctx, tx, ride_id, status)
@@ -558,24 +565,24 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	for {
 		d, err := getChairNotification(ctx, chair)
 
-		b, _ := json.Marshal(d)
-		fmt.Fprintf(w, "data: %s\n", b)
-		w.(http.Flusher).Flush()
-
-		if errors.Is(err, ErrNoChairs) {
-			// retry
-			time.Sleep(time.Duration(chairRetryAfterMs) * time.Millisecond)
-			continue
-		} else if err != nil {
+		if err != nil && !errors.Is(err, ErrNoChairs) {
 			slog.Error("chairGetNotification", "error", err)
 			return
+		}
+
+		if d != nil {
+			b, _ := json.Marshal(d)
+			fmt.Fprintf(w, "data: %s\n", b)
+			w.(http.Flusher).Flush()
+
+			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", d.Status)
 		}
 
 		select {
 		case <-r.Context().Done():
 			return
 		default:
-			time.Sleep(time.Duration(appNotifyMs) * time.Millisecond)
+			time.Sleep(time.Duration(20) * time.Millisecond)
 		}
 	}
 }
