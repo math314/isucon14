@@ -568,7 +568,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 
 		if errors.Is(err, ErrNoChairs) {
 			// retry
-			time.Sleep(time.Duration(50) * time.Millisecond)
+			time.Sleep(time.Duration(200) * time.Millisecond)
 			continue
 		} else if err != nil {
 			slog.Error("chairGetNotification", "error", err)
@@ -579,7 +579,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
-			time.Sleep(time.Duration(50) * time.Millisecond)
+			time.Sleep(time.Duration(200) * time.Millisecond)
 		}
 	}
 }
