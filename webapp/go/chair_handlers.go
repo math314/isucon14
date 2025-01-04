@@ -572,6 +572,7 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case data := <-c:
+			time.Sleep(20 * time.Millisecond)
 			b, _ := json.Marshal(data)
 			fmt.Fprintf(w, "data: %s\n\n", b)
 			w.(http.Flusher).Flush()
