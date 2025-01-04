@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 )
 
 var ErrNoRides = fmt.Errorf("no rides")
@@ -39,7 +40,7 @@ func getRideStatus(ctx context.Context, userID string) (appGetNotificationRespon
 		status = yetSentRideStatus.Status
 	}
 
-	fare, err := calculateDiscountedFare(ctx, tx, userID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+	fare, err := calculateDiscountedFare(ctx, tx, userID, ride.ID, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
 	if err != nil {
 		return appGetNotificationResponseData{}, err
 	}
@@ -91,4 +92,36 @@ func getRideStatus(ctx context.Context, userID string) (appGetNotificationRespon
 	}
 
 	return responseData, nil
+}
+
+func takeLatestUnsentNotificationResponseDataToApp(userID string) (*appGetNotificationResponseData, bool) {
+	unsentRideStatusesToAppRWMutex.Lock()
+	defer unsentRideStatusesToAppRWMutex.Unlock()
+
+	c, ok := unsentRideStatusesToAppChan[userID]
+	if !ok {
+		return nil, false
+	}
+
+	select {
+	case data := <-c:
+		sentLastRideStatusToApp[userID] = data
+		return data, true
+	default:
+		return sentLastRideStatusToApp[userID], false
+	}
+}
+
+func getRideStatusFromChannel(userID string) (*appGetNotificationResponseData, error) {
+	nextData, newNotification := takeLatestUnsentNotificationResponseDataToApp(userID)
+
+	if nextData == nil {
+		return nil, ErrNoRides
+	}
+
+	if newNotification {
+		slog.Info("getRideStatusFromChannel notification sent - ", "userId", userID, "data", nextData)
+	}
+
+	return nextData, nil
 }

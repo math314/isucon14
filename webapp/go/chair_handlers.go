@@ -235,6 +235,78 @@ func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sql
 	return nil
 }
 
+func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) (*Ride, *appGetNotificationResponseData, error) {
+	ride := &Ride{}
+
+	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideId); err != nil {
+		slog.Error("buildAppGetNotificationResponseData get ride", "error", err)
+		return nil, nil, err
+	}
+
+	user := &User{}
+	if err := tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID); err != nil {
+		slog.Error("buildAppGetNotificationResponseData get user", "error", err)
+		return nil, nil, err
+	}
+
+	// fare, err := calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+	// if err != nil {
+	// 	slog.Error("buildAppGetNotificationResponseData calculateDiscountedFare", "error", err)
+	// 	return nil, nil, err
+	// }
+
+	responseData := &appGetNotificationResponseData{
+		RideID: ride.ID,
+		PickupCoordinate: Coordinate{
+			Latitude:  ride.PickupLatitude,
+			Longitude: ride.PickupLongitude,
+		},
+		DestinationCoordinate: Coordinate{
+			Latitude:  ride.DestinationLatitude,
+			Longitude: ride.DestinationLongitude,
+		},
+		Fare:      -1,
+		Status:    rideStatus,
+		CreatedAt: ride.CreatedAt.UnixMilli(),
+		UpdateAt:  ride.UpdatedAt.UnixMilli(),
+	}
+
+	if ride.ChairID.Valid {
+		chair, err := getChairByID(ride.ChairID.String)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		stats, err := getChairStats(ctx, tx, chair.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		responseData.Chair = &appGetNotificationResponseChair{
+			ID:    chair.ID,
+			Name:  chair.Name,
+			Model: chair.Model,
+			Stats: stats,
+		}
+	}
+
+	return ride, responseData, nil
+}
+
+func buildAndAppendAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) error {
+	ride, responseData, err := buildAppGetNotificationResponseData(ctx, tx, rideId, rideStatus)
+	if err != nil {
+		if errors.Is(err, ErrNoChairAssigned) {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	appendAppGetNotificationResponseData(ride.UserID, responseData)
+	return nil
+}
+
 func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) error {
 	id := ulid.Make().String()
 	now := time.Now()
@@ -256,6 +328,7 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 	}
 	updateLatestRideStatusCacheMap(rideStatus)
 	buildAndAppendChairGetNotificationResponseData(ctx, tx, ride_id, status)
+	buildAndAppendAppGetNotificationResponseData(ctx, tx, ride_id, status)
 
 	return nil
 }

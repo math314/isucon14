@@ -146,6 +146,10 @@ func runMatching() {
 		slog.Error("failed to build and append chair get notification response data", "error", err)
 		return
 	}
+	if err := buildAndAppendAppGetNotificationResponseData(ctx, tx, ride.ID, "MATCHING"); err != nil {
+		slog.Error("failed to build and append app get notification response data", "error", err)
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		slog.Error("failed to commit tx", "error", err)
 		return
