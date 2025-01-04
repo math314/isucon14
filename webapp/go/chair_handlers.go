@@ -575,6 +575,11 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "data: %s\n", b)
 			w.(http.Flusher).Flush()
 
+			rideStatusSentAtChan <- RideStatusSentAtRequest{
+				RideID:   d.RideID,
+				SentType: ChairNotification,
+			}
+
 			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", d.Status)
 		}
 
