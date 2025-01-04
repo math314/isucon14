@@ -176,10 +176,10 @@ func takeLatestUnsentNotificationResponseDataToChair(chairID string) (*chairGetN
 		sentLastRideStatusToChair[chairID] = data
 		return data, true
 	default:
-		ret := sentLastRideStatusToChair[chairID]
-		if ret != nil {
-			slog.Info("takeLatestUnsentNotificationResponseDataToChair - existing data", "chairID", chairID, "status", ret.Status)
-		}
+		// ret := sentLastRideStatusToChair[chairID]
+		// if ret != nil {
+		// 	slog.Info("takeLatestUnsentNotificationResponseDataToChair - existing data", "chairID", chairID, "status", ret.Status)
+		// }
 		return sentLastRideStatusToChair[chairID], false
 	}
 }
