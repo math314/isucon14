@@ -177,6 +177,8 @@ func setup() http.Handler {
 		slog.Error("failed to load unsent ride statuses to app", "error", err)
 	}
 
+	launchRideStatusSentAtSyncer()
+
 	mux := chi.NewRouter()
 	mux.Use(middleware.Recoverer)
 	mux.HandleFunc("POST /api/initialize", postInitialize)

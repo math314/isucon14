@@ -718,6 +718,11 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "data: %s\n", b)
 		w.(http.Flusher).Flush()
 
+		rideStatusSentAtChan <- RideStatusSentAtRequest{
+			RideID:   dataFromChannel.RideID,
+			SentType: AppNotification,
+		}
+
 		if errors.Is(ErrNoRides, err) {
 			// retry
 			time.Sleep(time.Duration(appRetryAfterMs) * time.Millisecond)
