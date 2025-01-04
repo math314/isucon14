@@ -713,7 +713,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			b, _ := json.Marshal(dataFromChannel)
-			fmt.Fprintf(w, "data: %s\n", b)
+			fmt.Fprintf(w, "data: %s\n\n", b)
 			w.(http.Flusher).Flush()
 		case <-r.Context().Done():
 			return

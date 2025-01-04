@@ -570,7 +570,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		select {
 		case data := <-c:
 			b, _ := json.Marshal(data)
-			fmt.Fprintf(w, "data: %s\n", b)
+			fmt.Fprintf(w, "data: %s\n\n", b)
 			w.(http.Flusher).Flush()
 		case <-r.Context().Done():
 			return
