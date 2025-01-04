@@ -573,7 +573,7 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "data: %s\n\n", b)
 			w.(http.Flusher).Flush()
 
-			slog.Error("chairGetNotificationSSE data sent", "chair", chair, "data", data)
+			slog.Info("chairGetNotificationSSE data sent", "chair", chair, "data", data)
 
 		case <-r.Context().Done():
 			return

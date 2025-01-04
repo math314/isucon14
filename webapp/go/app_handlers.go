@@ -707,7 +707,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			dataFromChannel.Fare, err = calculateDiscountedFare(ctx, tx, user.ID, dataFromChannel.RideID, dataFromChannel.PickupCoordinate.Latitude, dataFromChannel.PickupCoordinate.Longitude, dataFromChannel.DestinationCoordinate.Latitude, dataFromChannel.DestinationCoordinate.Longitude)
 			tx.Rollback()
 			if err != nil {
-				if !errors.Is(context.Canceled, err) {
+				if !errors.Is(err, context.Canceled) {
 					slog.Error("appGetNotificationSSE - failed to calculate fare", "error", err)
 				}
 				return
@@ -716,7 +716,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "data: %s\n\n", b)
 			w.(http.Flusher).Flush()
 
-			slog.Error("appGetNotificationSSE data sent", "user", user, "data", dataFromChannel)
+			slog.Info("appGetNotificationSSE data sent", "user", user, "data", dataFromChannel)
 		case <-r.Context().Done():
 			return
 		}
