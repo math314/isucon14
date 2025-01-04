@@ -706,11 +706,13 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		dataFromChannel.Fare, err = calculateDiscountedFare(ctx, tx, user.ID, dataFromChannel.RideID, dataFromChannel.PickupCoordinate.Latitude, dataFromChannel.PickupCoordinate.Longitude, dataFromChannel.DestinationCoordinate.Latitude, dataFromChannel.DestinationCoordinate.Longitude)
-		tx.Rollback()
-		if err != nil {
-			slog.Error("appGetNotificationSSE - failed to calculate fare", "error", err)
-			return
+		if dataFromChannel.Fare < 0 {
+			dataFromChannel.Fare, err = calculateDiscountedFare(ctx, tx, user.ID, dataFromChannel.RideID, dataFromChannel.PickupCoordinate.Latitude, dataFromChannel.PickupCoordinate.Longitude, dataFromChannel.DestinationCoordinate.Latitude, dataFromChannel.DestinationCoordinate.Longitude)
+			tx.Rollback()
+			if err != nil {
+				slog.Error("appGetNotificationSSE - failed to calculate fare", "error", err)
+				return
+			}
 		}
 
 		// d, err := getRideStatus(ctx, user.ID)
@@ -720,7 +722,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 
 		if errors.Is(ErrNoRides, err) {
 			// retry
-			time.Sleep(time.Duration(100) * time.Millisecond)
+			time.Sleep(time.Duration(50) * time.Millisecond)
 			continue
 		} else if err != nil {
 			slog.Error("appGetNotificationSSE", "error", err)
@@ -739,7 +741,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
-			time.Sleep(time.Duration(appNotifyMs) * time.Millisecond)
+			time.Sleep(time.Duration(50) * time.Millisecond)
 		}
 	}
 }
