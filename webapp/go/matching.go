@@ -73,7 +73,11 @@ func runMatching() {
 	chairCacheMapRWMutex.RLock()
 	chairLocationCacheMapRWMutex.RLock()
 	for _, chair := range chairCacheMap {
-		if !chair.IsActive || !chair.IsFree {
+		if !chair.IsActive {
+			continue
+		}
+		latestSentStatus, found := getChairIdToSentLatestRideStatus(chair.ID)
+		if found && latestSentStatus != "COMPLETED" {
 			continue
 		}
 		loc, ok := chairLocationCacheMap[chair.ID]
@@ -142,7 +146,8 @@ func runMatching() {
 	slog.Info("matched", "chair_id", matchedId, "ride_id", ride.ID)
 	assignRideToChair(matchedId, newRide)
 
-	if err := buildAndAppendChairGetNotificationResponseData(ctx, tx, ride.ID, "MATCHING"); err != nil {
+	chairId, err := buildAndAppendChairGetNotificationResponseData(ctx, tx, ride.ID, "MATCHING")
+	if err != nil {
 		slog.Error("failed to build and append chair get notification response data", "error", err)
 		return
 	}
@@ -150,6 +155,17 @@ func runMatching() {
 		slog.Error("failed to build and append app get notification response data", "error", err)
 		return
 	}
+	latestRideStatusCacheMapRWMutex.Lock()
+	defer latestRideStatusCacheMapRWMutex.Unlock()
+
+	if _, ok := chairIdToUnsentRideStatusesMap[chairId]; !ok {
+		chairIdToUnsentRideStatusesMap[chairId] = make(map[UnsentRideStatusKey]int)
+	}
+	chairIdToUnsentRideStatusesMap[chairId][UnsentRideStatusKey{
+		rideId: ride.ID,
+		status: "MATCHING",
+	}] = 0
+
 	if err := tx.Commit(); err != nil {
 		slog.Error("failed to commit tx", "error", err)
 		return

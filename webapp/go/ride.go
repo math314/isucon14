@@ -121,7 +121,8 @@ func getRideStatusFromChannel(userID string) (*appGetNotificationResponseData, e
 
 	if newNotification {
 		slog.Info("getRideStatusFromChannel notification sent - ", "userId", userID, "data", nextData)
+		return nextData, nil
+	} else {
+		return nil, nil
 	}
-
-	return nextData, nil
 }

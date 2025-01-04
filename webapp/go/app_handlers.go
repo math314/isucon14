@@ -706,17 +706,23 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		dataFromChannel.Fare, err = calculateDiscountedFare(ctx, tx, user.ID, dataFromChannel.RideID, dataFromChannel.PickupCoordinate.Latitude, dataFromChannel.PickupCoordinate.Longitude, dataFromChannel.DestinationCoordinate.Latitude, dataFromChannel.DestinationCoordinate.Longitude)
-		tx.Rollback()
-		if err != nil {
-			slog.Error("appGetNotificationSSE - failed to calculate fare", "error", err)
-			return
-		}
+		if dataFromChannel != nil {
+			dataFromChannel.Fare, err = calculateDiscountedFare(ctx, tx, user.ID, dataFromChannel.RideID, dataFromChannel.PickupCoordinate.Latitude, dataFromChannel.PickupCoordinate.Longitude, dataFromChannel.DestinationCoordinate.Latitude, dataFromChannel.DestinationCoordinate.Longitude)
+			tx.Rollback()
+			if err != nil {
+				slog.Error("appGetNotificationSSE - failed to calculate fare", "error", err)
+				return
+			}
 
-		// d, err := getRideStatus(ctx, user.ID)
-		b, _ := json.Marshal(dataFromChannel)
-		fmt.Fprintf(w, "data: %s\n", b)
-		w.(http.Flusher).Flush()
+			// d, err := getRideStatus(ctx, user.ID)
+			b, _ := json.Marshal(dataFromChannel)
+			fmt.Fprintf(w, "data: %s\n", b)
+			w.(http.Flusher).Flush()
+
+			if dataFromChannel.Chair != nil {
+				markRideStatusAsSentToApp(dataFromChannel.Chair.ID, UnsentRideStatusKey{dataFromChannel.RideID, dataFromChannel.Status})
+			}
+		}
 
 		if errors.Is(ErrNoRides, err) {
 			// retry
@@ -834,10 +840,17 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	nearbyChairs := []appGetNearbyChairsResponseChair{}
 	for _, chair := range chairCacheMap {
 		// slog.Info("  appGetNearbyChairs chair loop", "coordinate", coordinate, "chair", chair)
-		if !chair.IsActive || !chair.IsFree {
+		if !chair.IsActive {
 			// slog.Info("  appGetNearbyChairs chair loop - not active or not free", "coordinate", coordinate, "chair", chair)
 			continue
 		}
+
+		latestSentStatus, found := chairIdToSentLatestRideStatus[chair.ID]
+		if found && latestSentStatus != "COMPLETED" {
+			slog.Info("  appGetNearbyChairs chair loop - ride status found but not completed", "coordinate", coordinate, "chair", chair, "latestSentStatus", latestSentStatus)
+			continue
+		}
+
 		loc, ok := chairLocationCacheMap[chair.ID]
 		if !ok {
 			// slog.Info("  appGetNearbyChairs chair loop - no location found", "coordinate", coordinate, "chair", chair)

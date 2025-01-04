@@ -115,6 +115,46 @@ func updateIsFreeInCache(chairId string, isFree bool) error {
 var latestRideStatusCacheMapRWMutex = sync.RWMutex{}
 var latestRideStatusCacheMap map[string]*RideStatus = make(map[string]*RideStatus)
 
+type UnsentRideStatusKey struct {
+	rideId string
+	status string
+}
+
+var chairIdToUnsentRideStatusesMap map[string](map[UnsentRideStatusKey]int) = make(map[string](map[UnsentRideStatusKey]int))
+var chairIdToSentLatestRideStatus map[string]string = make(map[string]string)
+
+func markRideStatusAsSentToChair(chairId string, key UnsentRideStatusKey) int {
+	latestRideStatusCacheMapRWMutex.Lock()
+	defer latestRideStatusCacheMapRWMutex.Unlock()
+
+	chairIdToUnsentRideStatusesMap[chairId][key] |= 1
+	ret := chairIdToUnsentRideStatusesMap[chairId][key]
+	if ret == 3 {
+		chairIdToSentLatestRideStatus[chairId] = key.status
+	}
+	return ret
+}
+
+func markRideStatusAsSentToApp(chairId string, key UnsentRideStatusKey) int {
+	latestRideStatusCacheMapRWMutex.Lock()
+	defer latestRideStatusCacheMapRWMutex.Unlock()
+
+	chairIdToUnsentRideStatusesMap[chairId][key] |= 2
+	ret := chairIdToUnsentRideStatusesMap[chairId][key]
+	if ret == 3 {
+		chairIdToSentLatestRideStatus[chairId] = key.status
+	}
+	return ret
+}
+
+func getChairIdToSentLatestRideStatus(chairId string) (string, bool) {
+	latestRideStatusCacheMapRWMutex.RLock()
+	defer latestRideStatusCacheMapRWMutex.RUnlock()
+
+	status, ok := chairIdToSentLatestRideStatus[chairId]
+	return status, ok
+}
+
 func loadLatestRideStatusCacheMap() error {
 	latestRideStatusCacheMapRWMutex.Lock()
 	defer latestRideStatusCacheMapRWMutex.Unlock()
@@ -126,12 +166,15 @@ func loadLatestRideStatusCacheMap() error {
 	}
 
 	latestRideStatusCacheMap = make(map[string]*RideStatus)
-
 	for _, rideStatus := range rideStatuses {
 		if _, ok := latestRideStatusCacheMap[rideStatus.RideID]; !ok {
 			latestRideStatusCacheMap[rideStatus.RideID] = rideStatus
 		}
 	}
+
+	// all notifications should be sent before the server termination
+	chairIdToUnsentRideStatusesMap = make(map[string](map[UnsentRideStatusKey]int))
+
 	return nil
 }
 
@@ -227,18 +270,18 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 	return ride, b, nil
 }
 
-func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) error {
+func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) (string, error) {
 	ride, responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
-			return nil
+			return "", nil
 		} else {
-			return err
+			return "", err
 		}
 	}
 
 	appendChairGetNotificationResponseData(ride.ChairID.String, responseData)
-	return nil
+	return ride.ChairID.String, nil
 }
 
 func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) (*Ride, *appGetNotificationResponseData, error) {
@@ -333,9 +376,9 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 		ChairSentAt: nil,
 	}
 
-	updateLatestRideStatusCacheMap(rideStatus)
-	buildAndAppendChairGetNotificationResponseData(ctx, tx, ride_id, status)
+	chairId, _ := buildAndAppendChairGetNotificationResponseData(ctx, tx, ride_id, status)
 	buildAndAppendAppGetNotificationResponseData(ctx, tx, ride_id, status)
+	insertLatestRideStatusCacheMap(rideStatus, chairId)
 
 	return nil
 }
@@ -357,11 +400,20 @@ func insertRideStatusWithoutTransaction(ctx context.Context, ride_id, status str
 	return nil
 }
 
-func updateLatestRideStatusCacheMap(rideStatus *RideStatus) {
+func insertLatestRideStatusCacheMap(rideStatus *RideStatus, chairId string) {
 	latestRideStatusCacheMapRWMutex.Lock()
 	defer latestRideStatusCacheMapRWMutex.Unlock()
 
 	latestRideStatusCacheMap[rideStatus.RideID] = rideStatus
+	if chairId != "" {
+		if _, ok := chairIdToUnsentRideStatusesMap[chairId]; !ok {
+			chairIdToUnsentRideStatusesMap[chairId] = make(map[UnsentRideStatusKey]int)
+		}
+		chairIdToUnsentRideStatusesMap[chairId][UnsentRideStatusKey{
+			rideId: rideStatus.RideID,
+			status: rideStatus.Status,
+		}] = 0
+	}
 }
 
 func getLatestRideStatusFromCache(ride_id string) (string, error) {
@@ -575,6 +627,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "data: %s\n", b)
 			w.(http.Flusher).Flush()
 
+			markRideStatusAsSentToChair(chair.ID, UnsentRideStatusKey{d.RideID, d.Status})
 			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", d.Status)
 		}
 
