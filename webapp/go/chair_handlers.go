@@ -161,6 +161,15 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	unsentRideStatusesToChairChan[chairID] <- data
 }
 
+func getChairGetNotificationResponseDataChannel(chairID string) chan *chairGetNotificationResponseData {
+	unsentRideStatusesToChairRWMutex.Lock()
+	defer unsentRideStatusesToChairRWMutex.Unlock()
+	if _, ok := unsentRideStatusesToChairChan[chairID]; !ok {
+		unsentRideStatusesToChairChan[chairID] = make(chan *chairGetNotificationResponseData, 10)
+	}
+	return unsentRideStatusesToChairChan[chairID]
+}
+
 func takeLatestUnsentNotificationResponseDataToChair(chairID string) (*chairGetNotificationResponseData, bool) {
 	unsentRideStatusesToChairRWMutex.Lock()
 	defer unsentRideStatusesToChairRWMutex.Unlock()
@@ -555,27 +564,16 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	c := getChairGetNotificationResponseDataChannel(chair.ID)
+
 	for {
-		d, err := getChairNotification(ctx, chair)
-
-		b, _ := json.Marshal(d)
-		fmt.Fprintf(w, "data: %s\n", b)
-		w.(http.Flusher).Flush()
-
-		if errors.Is(err, ErrNoChairs) {
-			// retry
-			time.Sleep(time.Duration(chairRetryAfterMs) * time.Millisecond)
-			continue
-		} else if err != nil {
-			slog.Error("chairGetNotification", "error", err)
-			return
-		}
-
 		select {
+		case data := <-c:
+			b, _ := json.Marshal(data)
+			fmt.Fprintf(w, "data: %s\n", b)
+			w.(http.Flusher).Flush()
 		case <-r.Context().Done():
 			return
-		default:
-			time.Sleep(time.Duration(appNotifyMs) * time.Millisecond)
 		}
 	}
 }
