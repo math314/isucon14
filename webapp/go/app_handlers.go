@@ -873,7 +873,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	chairLocationCacheMapRWMutex.RUnlock()
 	chairCacheMapRWMutex.RUnlock()
 
-	// slog.Info("appGetNearbyChairs - result", "coordinate", coordinate, "distance", distance, "nearbyChairs", nearbyChairs)
+	slog.Info("appGetNearbyChairs - result", "coordinate", coordinate, "distance", distance, "nearbyChairs", nearbyChairs)
 
 	writeJSON(w, http.StatusOK, &appGetNearbyChairsResponse{
 		Chairs:      nearbyChairs,

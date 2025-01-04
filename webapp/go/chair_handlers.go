@@ -194,6 +194,8 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		return nil, nil, ErrNoChairAssigned
 	}
 
+	slog.Info("buildChairGetNotificationResponseData - update status", "chair", ride.ChairID, "currentStatus", rideStatus)
+
 	user := &User{}
 	if err := tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID); err != nil {
 		slog.Error("buildChairGetNotificationResponseData get user", "error", err)
@@ -326,6 +328,7 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 		AppSentAt:   nil,
 		ChairSentAt: nil,
 	}
+
 	updateLatestRideStatusCacheMap(rideStatus)
 	buildAndAppendChairGetNotificationResponseData(ctx, tx, ride_id, status)
 	buildAndAppendAppGetNotificationResponseData(ctx, tx, ride_id, status)
