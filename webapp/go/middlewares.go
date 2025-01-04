@@ -65,10 +65,12 @@ func chairAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		accessToken := c.Value
-		chair := &Chair{}
-		err = db.GetContext(ctx, chair, "SELECT * FROM chairs WHERE access_token = ?", accessToken)
+
+		mutableChair, err := getChairByAccessToken(accessToken)
+		copiedChair := *mutableChair
+		chair := &copiedChair
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, ErrNoChairs) {
 				writeError(w, http.StatusUnauthorized, errors.New("invalid access token"))
 				return
 			}
