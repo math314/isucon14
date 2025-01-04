@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -652,124 +653,27 @@ type appGetNotificationResponseChairStats struct {
 	TotalEvaluationAvg float64 `json:"total_evaluation_avg"`
 }
 
-func appGetNotification(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := ctx.Value("user").(*User)
+var unsentRideStatusesToAppRWMutex = sync.RWMutex{}
+var unsentRideStatusesToAppChan map[string](chan *appGetNotificationResponseData) = make(map[string](chan *appGetNotificationResponseData))
 
-	tx, err := db.Beginx()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-	defer tx.Rollback()
+func loadUnsentRideStatusesToApp() error {
+	unsentRideStatusesToAppRWMutex.Lock()
+	defer unsentRideStatusesToAppRWMutex.Unlock()
 
-	ride := &Ride{}
-	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`, user.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusOK, &appGetNotificationResponse{
-				RetryAfterMs: appRetryAfterMs,
-			})
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
+	// all notifications should be sent before the server termination
+	unsentRideStatusesToAppChan = make(map[string](chan *appGetNotificationResponseData))
 
-	yetSentRideStatus := RideStatus{}
-	status := ""
-	if err := tx.GetContext(ctx, &yetSentRideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? AND app_sent_at IS NULL ORDER BY created_at ASC LIMIT 1`, ride.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			status, err = getLatestRideStatus(ctx, tx, ride.ID)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
-		} else {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-	} else {
-		status = yetSentRideStatus.Status
-	}
-
-	fare, err := calculateDiscountedFare(ctx, tx, user.ID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	response := &appGetNotificationResponse{
-		Data: &appGetNotificationResponseData{
-			RideID: ride.ID,
-			PickupCoordinate: Coordinate{
-				Latitude:  ride.PickupLatitude,
-				Longitude: ride.PickupLongitude,
-			},
-			DestinationCoordinate: Coordinate{
-				Latitude:  ride.DestinationLatitude,
-				Longitude: ride.DestinationLongitude,
-			},
-			Fare:      fare,
-			Status:    status,
-			CreatedAt: ride.CreatedAt.UnixMilli(),
-			UpdateAt:  ride.UpdatedAt.UnixMilli(),
-		},
-		RetryAfterMs: appRetryAfterMs,
-	}
-
-	if ride.ChairID.Valid {
-		chair := &Chair{}
-		if err := tx.GetContext(ctx, chair, `SELECT * FROM chairs WHERE id = ?`, ride.ChairID); err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-
-		stats, err := getChairStats(ctx, tx, chair.ID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-
-		response.Data.Chair = &appGetNotificationResponseChair{
-			ID:    chair.ID,
-			Name:  chair.Name,
-			Model: chair.Model,
-			Stats: stats,
-		}
-	}
-
-	if yetSentRideStatus.ID != "" {
-		_, err := tx.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = CURRENT_TIMESTAMP(6) WHERE id = ?`, yetSentRideStatus.ID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, response)
+	return nil
 }
 
-func appGetNotificationBunri(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := ctx.Value("user").(*User)
+func appendAppGetNotificationResponseData(userID string, data *appGetNotificationResponseData) {
+	unsentRideStatusesToAppRWMutex.Lock()
+	defer unsentRideStatusesToAppRWMutex.Unlock()
 
-	response, err := getRideStatus(ctx, user.ID)
-	if errors.Is(ErrNoRides, err) {
-		writeJSON(w, http.StatusOK, &appGetNotificationResponse{
-			RetryAfterMs: appRetryAfterMs,
-		})
-		return
-	} else if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+	if _, ok := unsentRideStatusesToAppChan[userID]; !ok {
+		unsentRideStatusesToAppChan[userID] = make(chan *appGetNotificationResponseData, 10)
 	}
-
-	writeJSON(w, http.StatusOK, response)
+	unsentRideStatusesToAppChan[userID] <- data
 }
 
 func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
@@ -783,26 +687,38 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	// for {
+	// 	d, err := getRideStatus(ctx, user.ID)
+	// 	b, _ := json.Marshal(d)
+	// 	fmt.Fprintf(w, "data: %s\n", b)
+	// 	w.(http.Flusher).Flush()
+
+	// 	if errors.Is(ErrNoRides, err) {
+	// 		// retry
+	// 		time.Sleep(time.Duration(appRetryAfterMs) * time.Millisecond)
+	// 		continue
+	// 	} else if err != nil {
+	// 		// slog.Error("appGetNotificationSSE", "error", err)
+	// 		return
+	// 	}
+
+	// 	select {
+	// 	case <-r.Context().Done():
+	// 		return
+	// 	default:
+	// 		time.Sleep(time.Duration(appNotifyMs) * time.Millisecond)
+	// 	}
+	// }
+
+	c := getAppNotificationChannel(user.ID)
 	for {
-		d, err := getRideStatus(ctx, user.ID)
-		b, _ := json.Marshal(d)
-		fmt.Fprintf(w, "data: %s\n", b)
-		w.(http.Flusher).Flush()
-
-		if errors.Is(ErrNoRides, err) {
-			// retry
-			time.Sleep(time.Duration(appRetryAfterMs) * time.Millisecond)
-			continue
-		} else if err != nil {
-			slog.Error("appGetNotificationSSE", "error", err)
-			return
-		}
-
 		select {
+		case d := <-c:
+			b, _ := json.Marshal(d)
+			fmt.Fprintf(w, "data: %s\n", b)
+			w.(http.Flusher).Flush()
 		case <-r.Context().Done():
 			return
-		default:
-			time.Sleep(time.Duration(appNotifyMs) * time.Millisecond)
 		}
 	}
 }

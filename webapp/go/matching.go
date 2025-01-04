@@ -67,7 +67,7 @@ func runMatching() {
 		return
 	}
 
-	slog.Info("runMatching started")
+	// slog.Info("runMatching started")
 
 	latestChairLocations := []ChairLocationLatest{}
 	if err := tx.SelectContext(ctx, &latestChairLocations, "SELECT * FROM chair_locations_latest WHERE chair_id IN (SELECT id FROM chairs WHERE is_active = TRUE AND is_free = TRUE)"); err != nil {
@@ -132,10 +132,14 @@ func runMatching() {
 		slog.Error("failed to build and append chair get notification response data", "error", err)
 		return
 	}
+	if err := buildAndAppendAppGetNotificationResponseData(ctx, tx, ride.ID, "MATCHING"); err != nil {
+		slog.Error("failed to build and append app get notification response data", "error", err)
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		slog.Error("failed to commit tx", "error", err)
 		return
 	}
 
-	slog.Info("runMatching finished")
+	// slog.Info("runMatching finished")
 }

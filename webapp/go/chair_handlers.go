@@ -48,17 +48,17 @@ func loadChairCacheMap() error {
 	return nil
 }
 
-// func getChairByID(chairID string) (*Chair, error) {
-// 	chairCacheMapRWMutex.RLock()
-// 	defer chairCacheMapRWMutex.RUnlock()
+func getChairByID(chairID string) (*Chair, error) {
+	chairCacheMapRWMutex.RLock()
+	defer chairCacheMapRWMutex.RUnlock()
 
-// 	chair, ok := chairCacheMap[chairID]
-// 	if !ok {
-// 		return nil, errors.New("chair not found")
-// 	}
+	chair, ok := chairCacheMap[chairID]
+	if !ok {
+		return nil, errors.New("chair not found")
+	}
 
-// 	return chair, nil
-// }
+	return chair, nil
+}
 
 func insertOrUpdateChairCacheMap(chair Chair) {
 	chairCacheMapRWMutex.Lock()
@@ -119,7 +119,6 @@ func loadLatestRideStatusCacheMap() error {
 
 var unsentRideStatusesToChairRWMutex = sync.RWMutex{}
 var unsentRideStatusesToChairChan map[string](chan *chairGetNotificationResponseData) = make(map[string](chan *chairGetNotificationResponseData))
-var sentLastRideStatusToChair map[string]*chairGetNotificationResponseData = make(map[string]*chairGetNotificationResponseData)
 
 func loadUnsentRideStatusesToChair() error {
 	unsentRideStatusesToChairRWMutex.Lock()
@@ -127,7 +126,6 @@ func loadUnsentRideStatusesToChair() error {
 
 	// all notifications should be sent before the server termination
 	unsentRideStatusesToChairChan = make(map[string](chan *chairGetNotificationResponseData))
-	sentLastRideStatusToChair = make(map[string]*chairGetNotificationResponseData)
 
 	return nil
 }
@@ -141,24 +139,6 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	}
 	// // slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
 	unsentRideStatusesToChairChan[chairID] <- data
-}
-
-func takeLatestUnsentNotificationResponseDataToChair(chairID string) (*chairGetNotificationResponseData, bool) {
-	unsentRideStatusesToChairRWMutex.Lock()
-	defer unsentRideStatusesToChairRWMutex.Unlock()
-
-	c, ok := unsentRideStatusesToChairChan[chairID]
-	if !ok {
-		return nil, false
-	}
-
-	select {
-	case data := <-c:
-		sentLastRideStatusToChair[chairID] = data
-		return data, true
-	default:
-		return sentLastRideStatusToChair[chairID], false
-	}
 }
 
 var ErrNoChairAssigned = fmt.Errorf("no chair assigned")
@@ -198,6 +178,7 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		},
 		Status: rideStatus,
 	}
+
 	// slog.Info("buildChairGetNotificationResponseData", "data", b)
 
 	return ride, b, nil
@@ -214,6 +195,78 @@ func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sql
 	}
 
 	appendChairGetNotificationResponseData(ride.ChairID.String, responseData)
+	return nil
+}
+
+func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) (*Ride, *appGetNotificationResponseData, error) {
+	ride := &Ride{}
+
+	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideId); err != nil {
+		slog.Error("buildAppGetNotificationResponseData get ride", "error", err)
+		return nil, nil, err
+	}
+
+	user := &User{}
+	if err := tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID); err != nil {
+		slog.Error("buildAppGetNotificationResponseData get user", "error", err)
+		return nil, nil, err
+	}
+
+	fare, err := calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+	if err != nil {
+		slog.Error("buildAppGetNotificationResponseData calculateDiscountedFare", "error", err)
+		return nil, nil, err
+	}
+
+	responseData := &appGetNotificationResponseData{
+		RideID: ride.ID,
+		PickupCoordinate: Coordinate{
+			Latitude:  ride.PickupLatitude,
+			Longitude: ride.PickupLongitude,
+		},
+		DestinationCoordinate: Coordinate{
+			Latitude:  ride.DestinationLatitude,
+			Longitude: ride.DestinationLongitude,
+		},
+		Fare:      fare,
+		Status:    rideStatus,
+		CreatedAt: ride.CreatedAt.UnixMilli(),
+		UpdateAt:  ride.UpdatedAt.UnixMilli(),
+	}
+
+	if ride.ChairID.Valid {
+		chair, err := getChairByID(ride.ChairID.String)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		stats, err := getChairStats(ctx, tx, chair.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		responseData.Chair = &appGetNotificationResponseChair{
+			ID:    chair.ID,
+			Name:  chair.Name,
+			Model: chair.Model,
+			Stats: stats,
+		}
+	}
+
+	return ride, responseData, nil
+}
+
+func buildAndAppendAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) error {
+	ride, responseData, err := buildAppGetNotificationResponseData(ctx, tx, rideId, rideStatus)
+	if err != nil {
+		if errors.Is(err, ErrNoChairAssigned) {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	appendAppGetNotificationResponseData(ride.UserID, responseData)
 	return nil
 }
 
@@ -238,6 +291,7 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 	}
 	updateLatestRideStatusCacheMap(rideStatus)
 	buildAndAppendChairGetNotificationResponseData(ctx, tx, ride_id, status)
+	buildAndAppendAppGetNotificationResponseData(ctx, tx, ride_id, status)
 
 	return nil
 }
