@@ -26,6 +26,8 @@ var appNotifyMs int
 
 func main() {
 	mux := setup()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
 }

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 )
 
 var ErrNoRides = fmt.Errorf("no rides")
@@ -113,15 +112,15 @@ func takeLatestUnsentNotificationResponseDataToApp(userID string) (*appGetNotifi
 }
 
 func getRideStatusFromChannel(userID string) (*appGetNotificationResponseData, error) {
-	nextData, newNotification := takeLatestUnsentNotificationResponseDataToApp(userID)
+	nextData, _ := takeLatestUnsentNotificationResponseDataToApp(userID)
 
 	if nextData == nil {
 		return nil, ErrNoRides
 	}
 
-	if newNotification {
-		slog.Info("getRideStatusFromChannel notification sent - ", "userId", userID, "data", nextData)
-	}
+	// if newNotification {
+	// 	slog.Info("getRideStatusFromChannel notification sent - ", "userId", userID, "data", nextData)
+	// }
 
 	return nextData, nil
 }

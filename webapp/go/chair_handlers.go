@@ -216,7 +216,7 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		},
 		Status: rideStatus,
 	}
-	// slog.Info("buildChairGetNotificationResponseData", "data", b)
+	slog.Info("buildChairGetNotificationResponseData", "data", b)
 
 	return ride, b, nil
 }
