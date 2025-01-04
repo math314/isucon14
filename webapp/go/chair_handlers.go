@@ -31,6 +31,7 @@ var chairLocationCacheMap map[string]*ChairLocationLatest = make(map[string]*Cha
 
 var chairCacheMapRWMutex = sync.RWMutex{}
 var chairCacheMap map[string]*Chair = make(map[string]*Chair)
+var accessTokenToChairCacheMap map[string]*Chair = make(map[string]*Chair)
 
 func loadChairCacheMap() error {
 	chairCacheMapRWMutex.Lock()
@@ -45,7 +46,23 @@ func loadChairCacheMap() error {
 	for _, chair := range chairs {
 		chairCacheMap[chair.ID] = chair
 	}
+	accessTokenToChairCacheMap = make(map[string]*Chair)
+	for _, chair := range chairs {
+		accessTokenToChairCacheMap[chair.AccessToken] = chair
+	}
 	return nil
+}
+
+func getChairByAccessToken(accessToken string) (*Chair, error) {
+	chairCacheMapRWMutex.RLock()
+	defer chairCacheMapRWMutex.RUnlock()
+
+	chair, ok := accessTokenToChairCacheMap[accessToken]
+	if !ok {
+		return nil, errors.New("chair not found")
+	}
+
+	return chair, nil
 }
 
 // func getChairByID(chairID string) (*Chair, error) {
@@ -60,11 +77,12 @@ func loadChairCacheMap() error {
 // 	return chair, nil
 // }
 
-func insertOrUpdateChairCacheMap(chair Chair) {
+func insertChairCacheMap(chair Chair) {
 	chairCacheMapRWMutex.Lock()
 	defer chairCacheMapRWMutex.Unlock()
 
 	chairCacheMap[chair.ID] = &chair
+	accessTokenToChairCacheMap[chair.AccessToken] = &chair
 }
 
 func updateIsActiveInCache(chairId string, isActive bool) error {
@@ -324,7 +342,7 @@ func chairPostChairs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	insertOrUpdateChairCacheMap(*newChair)
+	insertChairCacheMap(*newChair)
 
 	http.SetCookie(w, &http.Cookie{
 		Path:  "/",
