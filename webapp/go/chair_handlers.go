@@ -186,7 +186,7 @@ func takeLatestUnsentNotificationResponseDataToChair(chairID string) (*chairGetN
 
 var ErrNoChairAssigned = fmt.Errorf("no chair assigned")
 
-func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) (*Ride, *chairGetNotificationResponseData, error) {
+func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*Ride, *chairGetNotificationResponseData, error) {
 	ride := &Ride{}
 
 	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideId); err != nil {
@@ -206,7 +206,8 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 	}
 
 	b := &chairGetNotificationResponseData{
-		RideID: ride.ID,
+		RideStatusId: rideStatusId,
+		RideID:       ride.ID,
 		User: simpleUser{
 			ID:   user.ID,
 			Name: fmt.Sprintf("%s %s", user.Firstname, user.Lastname),
@@ -227,8 +228,8 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 	return ride, b, nil
 }
 
-func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) error {
-	ride, responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideId, rideStatus)
+func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) error {
+	ride, responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideStatusId, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
 			return nil
@@ -241,7 +242,7 @@ func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sql
 	return nil
 }
 
-func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) (*Ride, *appGetNotificationResponseData, error) {
+func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*Ride, *appGetNotificationResponseData, error) {
 	ride := &Ride{}
 
 	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideId); err != nil {
@@ -262,7 +263,8 @@ func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideI
 	// }
 
 	responseData := &appGetNotificationResponseData{
-		RideID: ride.ID,
+		RideStatusId: rideStatusId,
+		RideID:       ride.ID,
 		PickupCoordinate: Coordinate{
 			Latitude:  ride.PickupLatitude,
 			Longitude: ride.PickupLongitude,
@@ -299,8 +301,8 @@ func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideI
 	return ride, responseData, nil
 }
 
-func buildAndAppendAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideId string, rideStatus string) error {
-	ride, responseData, err := buildAppGetNotificationResponseData(ctx, tx, rideId, rideStatus)
+func buildAndAppendAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) error {
+	ride, responseData, err := buildAppGetNotificationResponseData(ctx, tx, rideId, rideStatusId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
 			return nil
@@ -334,8 +336,8 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 	}
 
 	updateLatestRideStatusCacheMap(rideStatus)
-	buildAndAppendChairGetNotificationResponseData(ctx, tx, ride_id, status)
-	buildAndAppendAppGetNotificationResponseData(ctx, tx, ride_id, status)
+	buildAndAppendChairGetNotificationResponseData(ctx, tx, id, ride_id, status)
+	buildAndAppendAppGetNotificationResponseData(ctx, tx, id, ride_id, status)
 
 	return nil
 }
@@ -544,6 +546,7 @@ type chairGetNotificationResponse struct {
 }
 
 type chairGetNotificationResponseData struct {
+	RideStatusId          string     `json:"-"`
 	RideID                string     `json:"ride_id"`
 	User                  simpleUser `json:"user"`
 	PickupCoordinate      Coordinate `json:"pickup_coordinate"`
@@ -577,7 +580,7 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 
 			rideStatusSentAtChan <- RideStatusSentAtRequest{
 				RideID:   d.RideID,
-				ChairId:  chair.ID,
+				ChairID:  chair.ID,
 				Status:   d.Status,
 				SentType: ChairNotification,
 			}

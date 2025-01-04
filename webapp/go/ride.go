@@ -137,10 +137,11 @@ const (
 )
 
 type RideStatusSentAtRequest struct {
-	RideID   string
-	ChairId  string
-	Status   string
-	SentType RideStatusSentType
+	RideStatusID string
+	RideID       string
+	ChairID      string
+	Status       string
+	SentType     RideStatusSentType
 }
 
 var rideStatusSentAtChan = make(chan RideStatusSentAtRequest, 1000)
@@ -149,7 +150,7 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	if request.Status != "COMPLETED" {
 		return nil
 	}
-	if request.ChairId == "" {
+	if request.ChairID == "" {
 		return nil
 	}
 
@@ -168,11 +169,11 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 		return errors.New("app_sent_at or chair_sent_at is nil")
 	}
 
-	slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairId)
-	if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 1 WHERE id = ?`, request.ChairId); err != nil {
+	slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairID)
+	if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 1 WHERE id = ?`, request.ChairID); err != nil {
 		return err
 	}
-	if err := updateIsFreeInCache(request.ChairId, true); err != nil {
+	if err := updateIsFreeInCache(request.ChairID, true); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -184,7 +185,7 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 
 func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
 	time := time.Now()
-	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE ride_id = ?`, time, request.RideID); err != nil {
+	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
 		return time, err
 	}
 
@@ -198,7 +199,7 @@ func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequ
 
 func updateRideStatusChairSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
 	time := time.Now()
-	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE ride_id = ?`, time, request.RideID); err != nil {
+	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
 		return time, err
 	}
 
