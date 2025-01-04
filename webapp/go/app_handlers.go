@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -650,6 +651,37 @@ type appGetNotificationResponseChair struct {
 type appGetNotificationResponseChairStats struct {
 	TotalRidesCount    int     `json:"total_rides_count"`
 	TotalEvaluationAvg float64 `json:"total_evaluation_avg"`
+}
+
+var unsentRideStatusesToAppRWMutex = sync.RWMutex{}
+var unsentRideStatusesToAppChan map[string](chan *appGetNotificationResponseData) = make(map[string](chan *appGetNotificationResponseData))
+var sentLastRideStatusToApp = map[string]*appGetNotificationResponseData{}
+
+func loadUnsentRideStatusesToApp() error {
+	unsentRideStatusesToAppRWMutex.Lock()
+	defer unsentRideStatusesToAppRWMutex.Unlock()
+
+	// all notifications should be sent before the server termination
+	unsentRideStatusesToAppChan = make(map[string](chan *appGetNotificationResponseData))
+	return nil
+}
+
+func appendAppGetNotificationResponseData(userID string, data *appGetNotificationResponseData) {
+	unsentRideStatusesToAppRWMutex.Lock()
+	defer unsentRideStatusesToAppRWMutex.Unlock()
+	if _, ok := unsentRideStatusesToAppChan[userID]; !ok {
+		unsentRideStatusesToAppChan[userID] = make(chan *appGetNotificationResponseData, 10)
+	}
+	unsentRideStatusesToAppChan[userID] <- data
+}
+
+func getAppGetNotificationResponseDataChannel(userID string) chan *appGetNotificationResponseData {
+	unsentRideStatusesToAppRWMutex.Lock()
+	defer unsentRideStatusesToAppRWMutex.Unlock()
+	if _, ok := unsentRideStatusesToAppChan[userID]; !ok {
+		unsentRideStatusesToAppChan[userID] = make(chan *appGetNotificationResponseData, 10)
+	}
+	return unsentRideStatusesToAppChan[userID]
 }
 
 func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {

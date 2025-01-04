@@ -171,6 +171,9 @@ func setup() http.Handler {
 	if err := loadUnsentRideStatusesToChair(); err != nil {
 		slog.Error("failed to load unsent ride statuses to chair", "error", err)
 	}
+	if err := loadUnsentRideStatusesToApp(); err != nil {
+		slog.Error("failed to load unsent ride statuses to app", "error", err)
+	}
 
 	mux := chi.NewRouter()
 	mux.Use(middleware.Recoverer)
@@ -282,6 +285,11 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := loadUnsentRideStatusesToChair(); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := loadUnsentRideStatusesToApp(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
