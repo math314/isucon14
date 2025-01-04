@@ -70,12 +70,26 @@ func runMatching() {
 	slog.Info("runMatching started")
 
 	latestChairLocations := []ChairLocationLatest{}
-	if err := tx.SelectContext(ctx, &latestChairLocations, "SELECT * FROM chair_locations_latest WHERE chair_id IN (SELECT id FROM chairs WHERE is_active = TRUE AND is_free = TRUE)"); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			slog.Info("no chairs")
-			return
+	chairCacheMapRWMutex.RLock()
+	chairLocationCacheMapRWMutex.RLock()
+	for _, chair := range chairCacheMap {
+		if !chair.IsActive || !chair.IsFree {
+			continue
 		}
+		loc, ok := chairLocationCacheMap[chair.ID]
+		if !ok {
+			continue
+		}
+
+		latestChairLocations = append(latestChairLocations, ChairLocationLatest{
+			ChairID:       chair.ID,
+			Latitude:      loc.Latitude,
+			Longitude:     loc.Longitude,
+			TotalDistance: loc.TotalDistance,
+		})
 	}
+	chairCacheMapRWMutex.RUnlock()
+	chairLocationCacheMapRWMutex.RUnlock()
 
 	if len(latestChairLocations) < 5 {
 		// slog.Info("too few chairs")
