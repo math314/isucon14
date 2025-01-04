@@ -720,7 +720,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 
 		if errors.Is(ErrNoRides, err) {
 			// retry
-			time.Sleep(time.Duration(appRetryAfterMs) * time.Millisecond)
+			time.Sleep(time.Duration(100) * time.Millisecond)
 			continue
 		} else if err != nil {
 			slog.Error("appGetNotificationSSE", "error", err)

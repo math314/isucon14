@@ -564,7 +564,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 
 		if errors.Is(err, ErrNoChairs) {
 			// retry
-			time.Sleep(time.Duration(chairRetryAfterMs) * time.Millisecond)
+			time.Sleep(time.Duration(100) * time.Millisecond)
 			continue
 		} else if err != nil {
 			slog.Error("chairGetNotification", "error", err)
