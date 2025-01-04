@@ -721,7 +721,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 
 		if errors.Is(ErrNoRides, err) {
 			// retry
-			time.Sleep(time.Duration(50) * time.Millisecond)
+			time.Sleep(time.Duration(20) * time.Millisecond)
 			continue
 		} else if err != nil {
 			slog.Error("appGetNotificationSSE", "error", err)
@@ -740,7 +740,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
-			time.Sleep(time.Duration(50) * time.Millisecond)
+			time.Sleep(time.Duration(20) * time.Millisecond)
 		}
 	}
 }
