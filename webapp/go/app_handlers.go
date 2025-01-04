@@ -703,7 +703,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case dataFromChannel := <-c:
-			time.Sleep(20 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 			tx, err := db.Beginx()
 			if err != nil {
 				slog.Error("appGetNotificationSSE - failed to begin transaction", "error", err)
