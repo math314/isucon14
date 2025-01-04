@@ -832,10 +832,15 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 
 	retrievedAt := time.Now().Add(-1 * time.Millisecond)
 
+	slog.Info("appGetNearbyChairs chairCacheMapRWMutex.RLock()")
 	chairCacheMapRWMutex.RLock()
+	slog.Info("appGetNearbyChairs chairIdToLatestRideIdMutex.RLock()")
 	chairIdToLatestRideIdMutex.RLock()
+	slog.Info("appGetNearbyChairs chairLocationCacheMapRWMutex.RLock()")
 	chairLocationCacheMapRWMutex.RLock()
+	slog.Info("appGetNearbyChairs latestRideStatusCacheMapRWMutex.RLock()")
 	latestRideStatusCacheMapRWMutex.RLock()
+	slog.Info("appGetNearbyChairs Rlock finished")
 
 	nearbyChairs := []appGetNearbyChairsResponseChair{}
 	for _, chair := range chairCacheMap {
