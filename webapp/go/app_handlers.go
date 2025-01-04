@@ -715,6 +715,8 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			b, _ := json.Marshal(dataFromChannel)
 			fmt.Fprintf(w, "data: %s\n\n", b)
 			w.(http.Flusher).Flush()
+
+			slog.Error("appGetNotificationSSE data sent", "user", user, "data", dataFromChannel)
 		case <-r.Context().Done():
 			return
 		}
@@ -850,7 +852,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	chairLocationCacheMapRWMutex.RUnlock()
 	chairCacheMapRWMutex.RUnlock()
 
-	// slog.Info("appGetNearbyChairs - result", "coordinate", coordinate, "distance", distance, "nearbyChairs", nearbyChairs)
+	slog.Info("appGetNearbyChairs - result", "coordinate", coordinate, "distance", distance, "nearbyChairs", nearbyChairs)
 
 	writeJSON(w, http.StatusOK, &appGetNearbyChairsResponse{
 		Chairs:      nearbyChairs,

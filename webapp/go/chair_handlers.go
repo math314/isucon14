@@ -553,7 +553,7 @@ type chairGetNotificationResponseData struct {
 	Status                string     `json:"status"`
 }
 
-func chairGetNotification(w http.ResponseWriter, r *http.Request) {
+func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chair := ctx.Value("chair").(*Chair)
 
@@ -572,6 +572,9 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 			b, _ := json.Marshal(data)
 			fmt.Fprintf(w, "data: %s\n\n", b)
 			w.(http.Flusher).Flush()
+
+			slog.Error("chairGetNotificationSSE data sent", "chair", chair, "data", data)
+
 		case <-r.Context().Done():
 			return
 		}
