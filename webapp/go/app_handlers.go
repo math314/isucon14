@@ -719,11 +719,13 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			b, _ := json.Marshal(dataFromChannel)
 			fmt.Fprintf(w, "data: %s\n", b)
 			w.(http.Flusher).Flush()
-		}
 
-		rideStatusSentAtChan <- RideStatusSentAtRequest{
-			RideID:   dataFromChannel.RideID,
-			SentType: AppNotification,
+			rideStatusSentAtChan <- RideStatusSentAtRequest{
+				RideID:   dataFromChannel.RideID,
+				SentType: AppNotification,
+			}
+
+			slog.Info("appGetNotificationSSE - sent", "RideID", dataFromChannel.RideID, "status", dataFromChannel.Status)
 		}
 
 		if errors.Is(ErrNoRides, err) {
