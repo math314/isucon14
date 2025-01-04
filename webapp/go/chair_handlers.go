@@ -551,7 +551,7 @@ type chairGetNotificationResponseData struct {
 	Status                string     `json:"status"`
 }
 
-func chairGetNotification(w http.ResponseWriter, r *http.Request) {
+func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chair := ctx.Value("chair").(*Chair)
 
@@ -587,7 +587,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
-			time.Sleep(time.Duration(20) * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
 		}
 	}
 }
