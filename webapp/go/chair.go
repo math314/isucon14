@@ -27,5 +27,9 @@ func getChairNotification(ctx context.Context, chair *Chair) (*chairGetNotificat
 	// 	slog.Info("notification sent", "chair", chair, "data", nextData)
 	// }
 
-	return nextData, nil
+	if newNotification {
+		return nextData, nil
+	} else {
+		return nil, nil
+	}
 }
