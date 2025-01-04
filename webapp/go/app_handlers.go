@@ -631,7 +631,7 @@ type appGetNotificationResponse struct {
 }
 
 type appGetNotificationResponseData struct {
-	RideStatusId 				  string                           `json:"-"`
+	RideStatusId          string                           `json:"-"`
 	RideID                string                           `json:"ride_id"`
 	PickupCoordinate      Coordinate                       `json:"pickup_coordinate"`
 	DestinationCoordinate Coordinate                       `json:"destination_coordinate"`
@@ -725,11 +725,11 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 				chairID = dataFromChannel.Chair.ID
 			}
 			rideStatusSentAtChan <- RideStatusSentAtRequest{
-				RideStatusID: dataFromChannel.
-				RideID:   dataFromChannel.RideID,
-				ChairID:  chairID,
-				Status:   dataFromChannel.Status,
-				SentType: AppNotification,
+				RideStatusID: dataFromChannel.RideStatusId,
+				RideID:       dataFromChannel.RideID,
+				ChairID:      chairID,
+				Status:       dataFromChannel.Status,
+				SentType:     AppNotification,
 			}
 
 			slog.Info("appGetNotificationSSE - sent", "RideID", dataFromChannel.RideID, "status", dataFromChannel.Status)
