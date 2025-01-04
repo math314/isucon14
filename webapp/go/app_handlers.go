@@ -715,6 +715,8 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
 		} else if d != *dataFromChannel {
 			slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
+		} else {
+			slog.Error("appGetNotificationSSE matched", "user", user, "data", d, "dataFromChannel", dataFromChannel)
 		}
 
 		select {
@@ -881,9 +883,12 @@ func calculateDiscountedFare(ctx context.Context, tx *sqlx.Tx, userID string, ri
 		if err := tx.GetContext(ctx, &coupon, "SELECT * FROM coupons WHERE used_by = ?", ride.ID); err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				return 0, err
+			} else {
+				slog.Info("calculateDiscountedFare - coupon is not used when ride is provided", "coupon", nil, "ride", ride)
 			}
 		} else {
 			discount = coupon.Discount
+			slog.Info("calculateDiscountedFare - coupon is used when ride is provided", "coupon", coupon, "ride", ride)
 		}
 	} else {
 		// 初回利用クーポンを最優先で使う
