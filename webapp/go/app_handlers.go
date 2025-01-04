@@ -711,6 +711,11 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 		}
 
 		dataFromChannel, err := getRideStatusFromChannel(user.ID)
+		if err != nil {
+			slog.Error("appGetNotificationSSE - failed to get dataFromChannel", "error", err)
+		}
+
+		dataFromChannel.Fare = d.Fare
 		if dataFromChannel == nil {
 			slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
 		} else if d != *dataFromChannel {

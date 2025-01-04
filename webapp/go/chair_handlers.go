@@ -249,11 +249,11 @@ func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideI
 		return nil, nil, err
 	}
 
-	fare, err := calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
-	if err != nil {
-		slog.Error("buildAppGetNotificationResponseData calculateDiscountedFare", "error", err)
-		return nil, nil, err
-	}
+	// fare, err := calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+	// if err != nil {
+	// 	slog.Error("buildAppGetNotificationResponseData calculateDiscountedFare", "error", err)
+	// 	return nil, nil, err
+	// }
 
 	responseData := &appGetNotificationResponseData{
 		RideID: ride.ID,
@@ -265,7 +265,7 @@ func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideI
 			Latitude:  ride.DestinationLatitude,
 			Longitude: ride.DestinationLongitude,
 		},
-		Fare:      fare,
+		Fare:      -1,
 		Status:    rideStatus,
 		CreatedAt: ride.CreatedAt.UnixMilli(),
 		UpdateAt:  ride.UpdatedAt.UnixMilli(),
