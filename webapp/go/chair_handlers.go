@@ -302,7 +302,7 @@ func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideS
 }
 
 func buildAndAppendAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) error {
-	ride, responseData, err := buildAppGetNotificationResponseData(ctx, tx, rideId, rideStatusId, rideStatus)
+	ride, responseData, err := buildAppGetNotificationResponseData(ctx, tx, rideStatusId, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
 			return nil
