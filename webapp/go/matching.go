@@ -72,11 +72,17 @@ func runMatching() {
 	latestChairLocations := []ChairLocationLatest{}
 	chairCacheMapRWMutex.RLock()
 	chairLocationCacheMapRWMutex.RLock()
+	latestRideStatusCacheMapRWMutex.RLock()
 	for _, chair := range chairCacheMap {
 		if !chair.IsActive {
 			continue
 		}
-		latestSentStatus, found := getChairIdToSentLatestRideStatus(chair.ID)
+
+		statusMap, statusMapFound := chairIdToUnsentRideStatusesMap[chair.ID]
+		if statusMapFound && len(statusMap) > 0 {
+			continue
+		}
+		latestSentStatus, found := chairIdToSentLatestRideStatus[chair.ID]
 		if found && latestSentStatus != "COMPLETED" {
 			continue
 		}
@@ -94,6 +100,7 @@ func runMatching() {
 	}
 	chairCacheMapRWMutex.RUnlock()
 	chairLocationCacheMapRWMutex.RUnlock()
+	latestRideStatusCacheMapRWMutex.RUnlock()
 
 	if len(latestChairLocations) < 5 {
 		// slog.Info("too few chairs")
