@@ -218,7 +218,6 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		},
 		Status: rideStatus,
 	}
-	// slog.Info("buildChairGetNotificationResponseData", "data", b)
 
 	return ride, b, nil
 }
@@ -564,6 +563,8 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		b, _ := json.Marshal(d)
 		fmt.Fprintf(w, "data: %s\n", b)
 		w.(http.Flusher).Flush()
+
+		slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", d.Status)
 
 		if errors.Is(err, ErrNoChairs) {
 			// retry
