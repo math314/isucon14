@@ -695,6 +695,10 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	b, _ := json.Marshal(nil)
+	fmt.Fprintf(w, "data: %s\n\n", b)
+	w.(http.Flusher).Flush()
+
 	for {
 		dataFromChannel, err := getRideStatusFromChannel(user.ID)
 		if err != nil {
@@ -716,12 +720,12 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 
 		// d, err := getRideStatus(ctx, user.ID)
 		b, _ := json.Marshal(dataFromChannel)
-		fmt.Fprintf(w, "data: %s\n", b)
+		fmt.Fprintf(w, "data: %s\n\n", b)
 		w.(http.Flusher).Flush()
 
 		if errors.Is(ErrNoRides, err) {
 			// retry
-			time.Sleep(time.Duration(20) * time.Millisecond)
+			time.Sleep(time.Duration(50) * time.Millisecond)
 			continue
 		} else if err != nil {
 			slog.Error("appGetNotificationSSE", "error", err)
@@ -740,7 +744,7 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
-			time.Sleep(time.Duration(20) * time.Millisecond)
+			time.Sleep(time.Duration(50) * time.Millisecond)
 		}
 	}
 }

@@ -555,16 +555,20 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	b, _ := json.Marshal(nil)
+	fmt.Fprintf(w, "data: %s\n\n", b)
+	w.(http.Flusher).Flush()
+
 	for {
 		d, err := getChairNotification(ctx, chair)
 
 		b, _ := json.Marshal(d)
-		fmt.Fprintf(w, "data: %s\n", b)
+		fmt.Fprintf(w, "data: %s\n\n", b)
 		w.(http.Flusher).Flush()
 
 		if errors.Is(err, ErrNoChairs) {
 			// retry
-			time.Sleep(time.Duration(20) * time.Millisecond)
+			time.Sleep(time.Duration(50) * time.Millisecond)
 			continue
 		} else if err != nil {
 			slog.Error("chairGetNotification", "error", err)
@@ -575,7 +579,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		default:
-			time.Sleep(time.Duration(20) * time.Millisecond)
+			time.Sleep(time.Duration(50) * time.Millisecond)
 		}
 	}
 }
