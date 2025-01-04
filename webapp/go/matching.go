@@ -67,8 +67,6 @@ func runMatching() {
 		return
 	}
 
-	slog.Info("runMatching started", "rides", len(rides))
-
 	chairLocationCacheMapRWMutex.RLock()
 	chairCacheMapRWMutex.RLock()
 	latestChairLocations := []ChairLocationLatest{}
@@ -88,6 +86,8 @@ func runMatching() {
 		return
 	}
 
+	slog.Info("runMatching started", "rides", len(rides), "chairs", len(latestChairLocations))
+
 	usedChairIds := map[string]struct{}{}
 	for _, ride := range rides {
 
@@ -106,7 +106,7 @@ func runMatching() {
 			}
 		}
 		if matchedId == "" {
-			slog.Error("no matched chair")
+			// slog.Error("no matched chair")
 			break
 		}
 		usedChairIds[matchedId] = struct{}{}

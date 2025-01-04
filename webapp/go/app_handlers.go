@@ -917,7 +917,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 
 	// slog.Info("appGetNearbyChairs - start", "coordinate", coordinate, "distance", distance)
 
-	retrievedAt := time.Now().Add(-1 * time.Millisecond)
+	retrievedAt := time.Now().Add(-100 * time.Millisecond)
 
 	chairCacheMapRWMutex.RLock()
 	chairLocationCacheMapRWMutex.RLock()
