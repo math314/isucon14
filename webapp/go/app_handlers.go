@@ -695,6 +695,10 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	b, _ := json.Marshal(nil)
+	fmt.Fprintf(w, "data: %s\n\n", b)
+	w.(http.Flusher).Flush()
+
 	c := getAppGetNotificationResponseDataChannel(user.ID)
 	for {
 		select {

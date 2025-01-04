@@ -564,8 +564,11 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	c := getChairGetNotificationResponseDataChannel(chair.ID)
+	b, _ := json.Marshal(nil)
+	fmt.Fprintf(w, "data: %s\n\n", b)
+	w.(http.Flusher).Flush()
 
+	c := getChairGetNotificationResponseDataChannel(chair.ID)
 	for {
 		select {
 		case data := <-c:
