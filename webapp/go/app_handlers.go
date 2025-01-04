@@ -694,7 +694,7 @@ func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNoti
 	err := tx.SelectContext(
 		ctx,
 		&rides,
-		`SELECT * FROM rides WHERE chair_id = ?`,
+		`SELECT * FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL`,
 		chairID,
 	)
 	if err != nil {
@@ -704,14 +704,6 @@ func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNoti
 	totalRideCount := 0
 	totalEvaluation := 0.0
 	for _, ride := range rides {
-		status, err := getLatestRideStatusFromCache(ride.ID)
-		if err != nil {
-			return stats, err
-		}
-		if status != "COMPLETED" {
-			continue
-		}
-
 		totalRideCount++
 		totalEvaluation += float64(*ride.Evaluation)
 	}
