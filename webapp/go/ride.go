@@ -40,7 +40,7 @@ func getRideStatus(ctx context.Context, userID string) (appGetNotificationRespon
 		status = yetSentRideStatus.Status
 	}
 
-	fare, err := calculateDiscountedFare(ctx, tx, userID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+	fare, err := calculateDiscountedFare(ctx, tx, userID, ride.ID, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
 	if err != nil {
 		return appGetNotificationResponseData{}, err
 	}

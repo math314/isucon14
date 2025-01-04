@@ -234,7 +234,7 @@ func appGetRides(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		fare, err := calculateDiscountedFare(ctx, tx, user.ID, &ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+		fare, err := calculateDiscountedFare(ctx, tx, user.ID, ride.ID, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -419,7 +419,7 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fare, err := calculateDiscountedFare(ctx, tx, user.ID, &ride, req.PickupCoordinate.Latitude, req.PickupCoordinate.Longitude, req.DestinationCoordinate.Latitude, req.DestinationCoordinate.Longitude)
+	fare, err := calculateDiscountedFare(ctx, tx, user.ID, rideID, req.PickupCoordinate.Latitude, req.PickupCoordinate.Longitude, req.DestinationCoordinate.Latitude, req.DestinationCoordinate.Longitude)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -467,7 +467,7 @@ func appPostRidesEstimatedFare(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	discounted, err := calculateDiscountedFare(ctx, tx, user.ID, nil, req.PickupCoordinate.Latitude, req.PickupCoordinate.Longitude, req.DestinationCoordinate.Latitude, req.DestinationCoordinate.Longitude)
+	discounted, err := calculateDiscountedFare(ctx, tx, user.ID, "", req.PickupCoordinate.Latitude, req.PickupCoordinate.Longitude, req.DestinationCoordinate.Latitude, req.DestinationCoordinate.Longitude)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -585,7 +585,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fare, err := calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
+	fare, err := calculateDiscountedFare(ctx, tx, ride.UserID, ride.ID, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -696,8 +696,24 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 
 	for {
-		d, err := getRideStatus(ctx, user.ID)
-		b, _ := json.Marshal(d)
+		dataFromChannel, err := getRideStatusFromChannel(user.ID)
+		if err != nil {
+			slog.Error("appGetNotificationSSE - failed to get dataFromChannel", "error", err)
+		}
+		tx, err := db.Beginx()
+		if err != nil {
+			slog.Error("appGetNotificationSSE - failed to begin transaction", "error", err)
+			return
+		}
+		defer tx.Rollback()
+		dataFromChannel.Fare, err = calculateDiscountedFare(ctx, tx, user.ID, dataFromChannel.RideID, dataFromChannel.PickupCoordinate.Latitude, dataFromChannel.PickupCoordinate.Longitude, dataFromChannel.DestinationCoordinate.Latitude, dataFromChannel.DestinationCoordinate.Longitude)
+		if err != nil {
+			slog.Error("appGetNotificationSSE - failed to calculate fare", "error", err)
+			return
+		}
+
+		// d, err := getRideStatus(ctx, user.ID)
+		b, _ := json.Marshal(dataFromChannel)
 		fmt.Fprintf(w, "data: %s\n", b)
 		w.(http.Flusher).Flush()
 
@@ -710,19 +726,13 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		dataFromChannel, err := getRideStatusFromChannel(user.ID)
-		if err != nil {
-			slog.Error("appGetNotificationSSE - failed to get dataFromChannel", "error", err)
-		}
-
-		dataFromChannel.Fare = d.Fare
-		if dataFromChannel == nil {
-			slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
-		} else if d != *dataFromChannel {
-			slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
-		} else {
-			slog.Error("appGetNotificationSSE matched", "user", user, "data", d, "dataFromChannel", dataFromChannel)
-		}
+		// if dataFromChannel == nil {
+		// 	slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
+		// } else if d != *dataFromChannel {
+		// 	slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
+		// } else {
+		// 	slog.Error("appGetNotificationSSE matched", "user", user, "data", d, "dataFromChannel", dataFromChannel)
+		// }
 
 		select {
 		case <-r.Context().Done():
@@ -875,25 +885,25 @@ func calculateFare(pickupLatitude, pickupLongitude, destLatitude, destLongitude 
 	return initialFare + meteredFare
 }
 
-func calculateDiscountedFare(ctx context.Context, tx *sqlx.Tx, userID string, ride *Ride, pickupLatitude, pickupLongitude, destLatitude, destLongitude int) (int, error) {
+func calculateDiscountedFare(ctx context.Context, tx *sqlx.Tx, userID string, rideId string, pickupLatitude, pickupLongitude, destLatitude, destLongitude int) (int, error) {
 	var coupon Coupon
 	discount := 0
-	if ride != nil {
-		destLatitude = ride.DestinationLatitude
-		destLongitude = ride.DestinationLongitude
-		pickupLatitude = ride.PickupLatitude
-		pickupLongitude = ride.PickupLongitude
+	if rideId != "" {
+		// destLatitude = ride.DestinationLatitude
+		// destLongitude = ride.DestinationLongitude
+		// pickupLatitude = ride.PickupLatitude
+		// pickupLongitude = ride.PickupLongitude
 
 		// すでにクーポンが紐づいているならそれの割引額を参照
-		if err := tx.GetContext(ctx, &coupon, "SELECT * FROM coupons WHERE used_by = ?", ride.ID); err != nil {
+		if err := tx.GetContext(ctx, &coupon, "SELECT * FROM coupons WHERE used_by = ?", rideId); err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				return 0, err
 			} else {
-				slog.Info("calculateDiscountedFare - coupon is not used when ride is provided", "coupon", nil, "ride", ride)
+				// slog.Info("calculateDiscountedFare - coupon is not used when ride is provided", "coupon", nil, "ride", ride)
 			}
 		} else {
 			discount = coupon.Discount
-			slog.Info("calculateDiscountedFare - coupon is used when ride is provided", "coupon", coupon, "ride", ride)
+			// slog.Info("calculateDiscountedFare - coupon is used when ride is provided", "coupon", coupon, "ride", ride)
 		}
 	} else {
 		// 初回利用クーポンを最優先で使う
