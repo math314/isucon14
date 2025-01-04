@@ -700,13 +700,12 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			slog.Error("appGetNotificationSSE - failed to get dataFromChannel", "error", err)
 		}
-		tx, err := db.Beginx()
-		if err != nil {
-			slog.Error("appGetNotificationSSE - failed to begin transaction", "error", err)
-			return
-		}
-
 		if dataFromChannel.Fare < 0 {
+			tx, err := db.Beginx()
+			if err != nil {
+				slog.Error("appGetNotificationSSE - failed to begin transaction", "error", err)
+				return
+			}
 			dataFromChannel.Fare, err = calculateDiscountedFare(ctx, tx, user.ID, dataFromChannel.RideID, dataFromChannel.PickupCoordinate.Latitude, dataFromChannel.PickupCoordinate.Longitude, dataFromChannel.DestinationCoordinate.Latitude, dataFromChannel.DestinationCoordinate.Longitude)
 			tx.Rollback()
 			if err != nil {
