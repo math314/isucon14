@@ -705,8 +705,9 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			slog.Error("appGetNotificationSSE - failed to begin transaction", "error", err)
 			return
 		}
-		defer tx.Rollback()
+
 		dataFromChannel.Fare, err = calculateDiscountedFare(ctx, tx, user.ID, dataFromChannel.RideID, dataFromChannel.PickupCoordinate.Latitude, dataFromChannel.PickupCoordinate.Longitude, dataFromChannel.DestinationCoordinate.Latitude, dataFromChannel.DestinationCoordinate.Longitude)
+		tx.Rollback()
 		if err != nil {
 			slog.Error("appGetNotificationSSE - failed to calculate fare", "error", err)
 			return
