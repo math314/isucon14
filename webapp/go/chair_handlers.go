@@ -565,7 +565,7 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	for {
 		d, err := getChairNotification(ctx, chair)
 
-		if !errors.Is(err, ErrNoChairs) {
+		if err != nil && !errors.Is(err, ErrNoChairs) {
 			slog.Error("chairGetNotification", "error", err)
 			return
 		}
