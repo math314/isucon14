@@ -563,7 +563,7 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 
 	for {
-		d, err := getChairNotification(ctx, chair)
+		d, err := getChairNotification(chair)
 
 		if err != nil && !errors.Is(err, ErrNoChairs) {
 			slog.Error("chairGetNotification", "error", err)
@@ -577,6 +577,8 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 
 			rideStatusSentAtChan <- RideStatusSentAtRequest{
 				RideID:   d.RideID,
+				ChairId:  chair.ID,
+				Status:   d.Status,
 				SentType: ChairNotification,
 			}
 
