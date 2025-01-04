@@ -59,7 +59,7 @@ func getChairByAccessToken(accessToken string) (*Chair, error) {
 
 	chair, ok := accessTokenToChairCacheMap[accessToken]
 	if !ok {
-		return nil, errors.New("chair not found")
+		return nil, ErrNoChairs
 	}
 
 	return chair, nil
