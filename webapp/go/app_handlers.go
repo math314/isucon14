@@ -845,11 +845,11 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		statusMap, statusMapFound := chairIdToUnsentRideStatusesMap[chair.ID]
-		if statusMapFound && len(statusMap) > 0 {
-			slog.Info("  appGetNearbyChairs chair loop - unsent ride status found", "coordinate", coordinate, "chair", chair, "statusMap", statusMap)
-			continue
-		}
+		// statusMap, statusMapFound := chairIdToUnsentRideStatusesMap[chair.ID]
+		// if statusMapFound && len(statusMap) > 0 {
+		// 	slog.Info("  appGetNearbyChairs chair loop - unsent ride status found", "coordinate", coordinate, "chair", chair, "statusMap", statusMap)
+		// 	continue
+		// }
 		latestSentStatus, found := chairIdToSentLatestRideStatus[chair.ID]
 		if found && latestSentStatus != "COMPLETED" {
 			slog.Info("  appGetNearbyChairs chair loop - ride status found but not completed", "coordinate", coordinate, "chair", chair, "latestSentStatus", latestSentStatus)
