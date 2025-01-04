@@ -194,38 +194,35 @@ func ownerGetChairs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	owner := ctx.Value("owner").(*Owner)
 
-	chairs := []chairWithDetail{}
-	if err := db.SelectContext(ctx, &chairs, `SELECT id,
-       owner_id,
-       name,
-       access_token,
-       model,
-       is_active,
-       chairs.created_at AS created_at,
-       chairs.updated_at AS updated_at,
-       IFNULL(chair_locations_latest.total_distance, 0) AS total_distance,
-       chair_locations_latest.updated_at AS total_distance_updated_at
-FROM chairs
-       LEFT JOIN chair_locations_latest ON chair_locations_latest.chair_id = chairs.id
-WHERE owner_id = ?
-`, owner.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+	chairCacheMapRWMutex.RLock()
+	defer chairCacheMapRWMutex.RUnlock()
+	chairs := []Chair{}
+	for _, chair := range chairCacheMap {
+		if chair.OwnerID == owner.ID {
+			chairs = append(chairs, *chair)
+		}
 	}
+
+	chairLocationCacheMapRWMutex.RLock()
+	defer chairLocationCacheMapRWMutex.RUnlock()
 
 	res := ownerGetChairResponse{}
 	for _, chair := range chairs {
-		c := ownerGetChairResponseChair{
-			ID:            chair.ID,
-			Name:          chair.Name,
-			Model:         chair.Model,
-			Active:        chair.IsActive,
-			RegisteredAt:  chair.CreatedAt.UnixMilli(),
-			TotalDistance: chair.TotalDistance,
+		totalDistance := 0
+		totalDistanceUpdatedAt := (*int64)(nil)
+		if location, ok := chairLocationCacheMap[chair.ID]; ok {
+			totalDistance = location.TotalDistance
+			t := location.UpdatedAt.UnixMilli()
+			totalDistanceUpdatedAt = &t
 		}
-		if chair.TotalDistanceUpdatedAt.Valid {
-			t := chair.TotalDistanceUpdatedAt.Time.UnixMilli()
-			c.TotalDistanceUpdatedAt = &t
+		c := ownerGetChairResponseChair{
+			ID:                     chair.ID,
+			Name:                   chair.Name,
+			Model:                  chair.Model,
+			Active:                 chair.IsActive,
+			RegisteredAt:           chair.CreatedAt.UnixMilli(),
+			TotalDistance:          totalDistance,
+			TotalDistanceUpdatedAt: totalDistanceUpdatedAt,
 		}
 		res.Chairs = append(res.Chairs, c)
 	}
