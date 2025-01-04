@@ -453,6 +453,18 @@ type chairGetNotificationResponseData struct {
 	Status                string     `json:"status"`
 }
 
+func updateChairsOnComplete(ctx context.Context, chairId string, status string) error {
+	if status == "COMPLETED" {
+		if _, err := db.ExecContext(ctx, `UPDATE chairs SET is_free = TRUE WHERE id = ?`, chairId); err != nil {
+			return err
+		}
+		if err := updateIsFreeInCache(chairId, true); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chair := ctx.Value("chair").(*Chair)
@@ -464,27 +476,20 @@ func chairGetNotification(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	c := getChairNotificationChannel(chair.ID)
+
 	for {
-		d, err := getChairNotification(ctx, chair)
-
-		b, _ := json.Marshal(d)
-		fmt.Fprintf(w, "data: %s\n", b)
-		w.(http.Flusher).Flush()
-
-		if errors.Is(err, ErrNoChairs) {
-			// retry
-			time.Sleep(time.Duration(chairRetryAfterMs) * time.Millisecond)
-			continue
-		} else if err != nil {
-			slog.Error("chairGetNotification", "error", err)
-			return
-		}
-
 		select {
+		case d := <-c:
+			b, _ := json.Marshal(d)
+			fmt.Fprintf(w, "data: %s\n", b)
+			w.(http.Flusher).Flush()
+			if err := updateChairsOnComplete(ctx, chair.ID, d.Status); err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
 		case <-r.Context().Done():
 			return
-		default:
-			time.Sleep(time.Duration(appNotifyMs) * time.Millisecond)
 		}
 	}
 }
