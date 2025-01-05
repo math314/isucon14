@@ -589,13 +589,13 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := tx.Commit(); err != nil {
+	err = insertRideStatus(ctx, tx, rideID, "COMPLETED")
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	err = insertRideStatusWithoutTransaction(ctx, rideID, "COMPLETED")
-	if err != nil {
+	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
