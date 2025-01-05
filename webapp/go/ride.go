@@ -48,20 +48,6 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	}
 	rideStatusSentAt := rideStatusSentAtCache[request.RideStatusID]
 
-	// rideStatus := RideStatus{}
-	// if err := db.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE id = ?`, request.RideStatusID); err != nil {
-	// 	return err
-	// }
-
-	// if rideStatusSentAt.AppNotificationDone != (rideStatus.AppSentAt != nil) {
-	// 	slog.Error("appSentAt is not consistent", "rideStatus", rideStatus, "rideStatusSentAt", rideStatusSentAt)
-	// }
-	// if rideStatusSentAt.ChairNotificationDone != (rideStatus.ChairSentAt != nil) {
-	// 	slog.Error("chairSentAt is not consistent", "rideStatus", rideStatus, "rideStatusSentAt", rideStatusSentAt)
-	// }
-
-	// slog.Info("checkStatusAndUpdateChairFreeFlag", "rideStatus", rideStatus)
-
 	if !rideStatusSentAt.AppNotificationDone || !rideStatusSentAt.ChairNotificationDone || !rideStatusSentAt.EvaluationResultFlushed {
 		return errNoNeedToUpdate
 	}
@@ -77,9 +63,6 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 
 func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
 	time := time.Now()
-	// if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
-	// 	return time, err
-	// }
 	if rideStatusSentAtCache[request.RideStatusID] == nil {
 		rideStatusSentAtCache[request.RideStatusID] = &RideStatusSentAt{}
 	}
@@ -99,9 +82,6 @@ func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequ
 
 func updateRideStatusChairSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
 	time := time.Now()
-	// if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
-	// 	return time, err
-	// }
 	if rideStatusSentAtCache[request.RideStatusID] == nil {
 		rideStatusSentAtCache[request.RideStatusID] = &RideStatusSentAt{}
 	}
