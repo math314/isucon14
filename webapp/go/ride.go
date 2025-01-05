@@ -137,28 +137,81 @@ const (
 )
 
 type RideStatusSentAtRequest struct {
-	RideID   string
-	SentType RideStatusSentType
+	RideStatusID string
+	RideID       string
+	ChairID      string
+	Status       string
+	SentType     RideStatusSentType
 }
 
 var rideStatusSentAtChan = make(chan RideStatusSentAtRequest, 1000)
 
-func updateRideStatusAppSentAt(ctx context.Context, rideID string) (time.Time, error) {
-	time := time.Now()
-	_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE ride_id = ?`, time, rideID)
+func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSentAtRequest) error {
+	if request.Status != "COMPLETED" {
+		return nil
+	}
+	if request.ChairID == "" {
+		return nil
+	}
 
-	// update cache as well
+	tx, err := db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
-	return time, err
+	rideStatus := RideStatus{}
+	if err := tx.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE id = ?`, request.RideStatusID); err != nil {
+		return err
+	}
+	slog.Info("checkStatusAndUpdateChairFreeFlag", "rideStatus", rideStatus)
+
+	if rideStatus.AppSentAt == nil || rideStatus.ChairSentAt == nil {
+		return errors.New("app_sent_at or chair_sent_at is nil")
+	}
+
+	slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairID)
+	if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 1 WHERE id = ?`, request.ChairID); err != nil {
+		return err
+	}
+	if err := updateIsFreeInCache(request.ChairID, true); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func updateRideStatusChairSentAt(ctx context.Context, rideID string) (time.Time, error) {
+func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
 	time := time.Now()
-	_, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE ride_id = ?`, time, rideID)
+	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
+		return time, err
+	}
+	slog.Info("updateRideStatusAppSentAt", "rideStatusId", request.RideStatusID, "time", time)
 
+	if err := checkStatusAndUpdateChairFreeFlag(ctx, request); err != nil {
+		return time, err
+	}
 	// update cache as well
 
-	return time, err
+	return time, nil
+}
+
+func updateRideStatusChairSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
+	time := time.Now()
+	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
+		return time, err
+	}
+	slog.Info("updateRideStatusChairSentAt", "rideStatusId", request.RideStatusID, "time", time)
+
+	if err := checkStatusAndUpdateChairFreeFlag(ctx, request); err != nil {
+		return time, err
+	}
+	// update cache as well
+
+	return time, nil
 }
 
 func launchRideStatusSentAtSyncer() {
@@ -166,13 +219,13 @@ func launchRideStatusSentAtSyncer() {
 		for req := range rideStatusSentAtChan {
 			ctx := context.Background()
 			if req.SentType == AppNotification {
-				if time, err := updateRideStatusAppSentAt(ctx, req.RideID); err != nil {
+				if time, err := updateRideStatusAppSentAt(ctx, req); err != nil {
 					slog.Error("failed to update app sent at", "error", err)
 				} else {
 					slog.Info("updated app sent at", "rideId", req.RideID, "app_sent_at", time)
 				}
 			} else {
-				if time, err := updateRideStatusChairSentAt(ctx, req.RideID); err != nil {
+				if time, err := updateRideStatusChairSentAt(ctx, req); err != nil {
 					slog.Error("failed to update chair sent at", "error", err)
 				} else {
 					slog.Info("updated chair sent at", "rideId", req.RideID, "chair_sent_at", time)
