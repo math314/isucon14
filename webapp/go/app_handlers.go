@@ -712,8 +712,15 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			b, _ := json.Marshal(dataFromChannel)
-			fmt.Fprintf(w, "data: %s\n", b)
+			b, err := json.Marshal(dataFromChannel)
+			if err != nil {
+				slog.Error("appGetNotificationSSE - failed to marshal", "error", err)
+				return
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n", b); err != nil {
+				slog.Error("appGetNotificationSSE - failed to write", "error", err)
+				return
+			}
 			w.(http.Flusher).Flush()
 
 			chairID := ""

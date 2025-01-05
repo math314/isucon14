@@ -559,8 +559,15 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case dataFromChannel := <-c:
-			b, _ := json.Marshal(dataFromChannel)
-			fmt.Fprintf(w, "data: %s\n", b)
+			b, err := json.Marshal(dataFromChannel)
+			if err != nil {
+				slog.Error("chairGetNotification - failed to marshal", "error", err)
+				return
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n", b); err != nil {
+				slog.Error("chairGetNotification - failed to write", "error", err)
+				return
+			}
 			w.(http.Flusher).Flush()
 
 			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", dataFromChannel.Status)
@@ -573,6 +580,7 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 				SentType:     ChairNotification,
 			}
 		case <-r.Context().Done():
+			slog.Info("chairGetNotification - connection closed", "chair", chair.ID)
 			return
 		}
 	}
