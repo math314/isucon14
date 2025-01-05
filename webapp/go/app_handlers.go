@@ -484,9 +484,9 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		updateRideIdToCouponMap(rideID, usedCoupon)
 	}
 
-	ride := Ride{}
-	if err := tx.GetContext(ctx, &ride, "SELECT * FROM rides WHERE id = ?", rideID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+	_, found := getRideByIDFromCache(rideID)
+	if !found {
+		writeError(w, http.StatusInternalServerError, errNoRides)
 		return
 	}
 
@@ -595,15 +595,12 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	ride := &Ride{}
-	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE id = ?`, rideID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, errors.New("ride not found"))
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err)
+	ride, found := getRideByIDFromCache(rideID)
+	if !found {
+		writeError(w, http.StatusNotFound, errors.New("ride not found"))
 		return
 	}
+
 	status, err := getLatestRideStatusFromCache(ride.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
