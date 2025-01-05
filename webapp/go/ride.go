@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"time"
 )
 
 type RideStatusSentType int
@@ -24,6 +23,13 @@ type RideStatusSentAtRequest struct {
 
 var rideStatusSentAtChan = make(chan RideStatusSentAtRequest, 1000)
 
+type RideStatusSentAt struct {
+	AppNotificationDone   bool
+	ChairNotificationDone bool
+}
+
+var rideStatusSentAtCache = make(map[string]*RideStatusSentAt)
+
 var errNoNeedToUpdate = errors.New("no need to update")
 
 func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSentAtRequest) error {
@@ -40,13 +46,11 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	}
 	defer tx.Rollback()
 
-	rideStatus := RideStatus{}
-	if err := tx.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE id = ?`, request.RideStatusID); err != nil {
-		return err
+	if _, ok := rideStatusSentAtCache[request.RideStatusID]; !ok {
+		rideStatusSentAtCache[request.RideStatusID] = &RideStatusSentAt{}
 	}
-	// slog.Info("checkStatusAndUpdateChairFreeFlag", "rideStatus", rideStatus)
-
-	if rideStatus.AppSentAt == nil || rideStatus.ChairSentAt == nil {
+	rideStatusSentAt := rideStatusSentAtCache[request.RideStatusID]
+	if !rideStatusSentAt.AppNotificationDone || !rideStatusSentAt.ChairNotificationDone {
 		return errNoNeedToUpdate
 	}
 
@@ -64,42 +68,48 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	return nil
 }
 
-func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
-	time := time.Now()
-	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
-		return time, err
+func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequest) error {
+	// if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
+	// 	return time, err
+	// }
+
+	if _, ok := rideStatusSentAtCache[request.RideStatusID]; !ok {
+		rideStatusSentAtCache[request.RideStatusID] = &RideStatusSentAt{}
 	}
-	// slog.Info("updateRideStatusAppSentAt", "rideStatusId", request.RideStatusID, "time", time)
+	rideStatusSentAtCache[request.RideStatusID].AppNotificationDone = true
 
 	if err := checkStatusAndUpdateChairFreeFlag(ctx, request); err != nil {
 		if errors.Is(err, errNoNeedToUpdate) {
-			return time, nil
+			return nil
 		} else {
-			return time, err
+			return err
 		}
 	}
-	// update cache as well
 
-	return time, nil
+	return nil
 }
 
-func updateRideStatusChairSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
-	time := time.Now()
-	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
-		return time, err
-	}
+func updateRideStatusChairSentAt(ctx context.Context, request RideStatusSentAtRequest) error {
+	// time := time.Now()
+	// if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
+	// 	return time, err
+	// }
 	// slog.Info("updateRideStatusChairSentAt", "rideStatusId", request.RideStatusID, "time", time)
+
+	if _, ok := rideStatusSentAtCache[request.RideStatusID]; !ok {
+		rideStatusSentAtCache[request.RideStatusID] = &RideStatusSentAt{}
+	}
+	rideStatusSentAtCache[request.RideStatusID].ChairNotificationDone = true
 
 	if err := checkStatusAndUpdateChairFreeFlag(ctx, request); err != nil {
 		if errors.Is(err, errNoNeedToUpdate) {
-			return time, nil
+			return nil
 		} else {
-			return time, err
+			return err
 		}
 	}
-	// update cache as well
 
-	return time, nil
+	return nil
 }
 
 func launchRideStatusSentAtSyncer() {
@@ -107,13 +117,13 @@ func launchRideStatusSentAtSyncer() {
 		for req := range rideStatusSentAtChan {
 			ctx := context.Background()
 			if req.SentType == AppNotification {
-				if _, err := updateRideStatusAppSentAt(ctx, req); err != nil {
+				if err := updateRideStatusAppSentAt(ctx, req); err != nil {
 					slog.Error("failed to update app sent at", "error", err)
 				} else {
 					// slog.Info("updated app sent at", "rideId", req.RideID, "app_sent_at", time)
 				}
 			} else {
-				if _, err := updateRideStatusChairSentAt(ctx, req); err != nil {
+				if err := updateRideStatusChairSentAt(ctx, req); err != nil {
 					slog.Error("failed to update chair sent at", "error", err)
 				} else {
 					// slog.Info("updated chair sent at", "rideId", req.RideID, "chair_sent_at", time)
