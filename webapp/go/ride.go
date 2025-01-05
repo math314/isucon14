@@ -46,17 +46,17 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	}
 	rideStatusSentAt := rideStatusSentAtCache[request.RideStatusID]
 
-	rideStatus := RideStatus{}
-	if err := db.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE id = ?`, request.RideStatusID); err != nil {
-		return err
-	}
+	// rideStatus := RideStatus{}
+	// if err := db.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE id = ?`, request.RideStatusID); err != nil {
+	// 	return err
+	// }
 
-	if rideStatusSentAt.AppNotificationDone != (rideStatus.AppSentAt != nil) {
-		slog.Error("appSentAt is not consistent", "rideStatus", rideStatus, "rideStatusSentAt", rideStatusSentAt)
-	}
-	if rideStatusSentAt.ChairNotificationDone != (rideStatus.ChairSentAt != nil) {
-		slog.Error("chairSentAt is not consistent", "rideStatus", rideStatus, "rideStatusSentAt", rideStatusSentAt)
-	}
+	// if rideStatusSentAt.AppNotificationDone != (rideStatus.AppSentAt != nil) {
+	// 	slog.Error("appSentAt is not consistent", "rideStatus", rideStatus, "rideStatusSentAt", rideStatusSentAt)
+	// }
+	// if rideStatusSentAt.ChairNotificationDone != (rideStatus.ChairSentAt != nil) {
+	// 	slog.Error("chairSentAt is not consistent", "rideStatus", rideStatus, "rideStatusSentAt", rideStatusSentAt)
+	// }
 
 	// slog.Info("checkStatusAndUpdateChairFreeFlag", "rideStatus", rideStatus)
 
