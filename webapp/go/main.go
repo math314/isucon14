@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/exec"
 	"strconv"
@@ -33,6 +34,12 @@ func main() {
 		Level: slog.LevelError.Level(),
 	}))
 	slog.SetDefault(logger)
+
+	go func() {
+		slog.Info("pprof")
+		http.ListenAndServe(":6060", nil)
+	}()
+
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
 }
