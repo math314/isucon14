@@ -62,15 +62,15 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	if !rideStatusSentAt.AppNotificationDone || !rideStatusSentAt.ChairNotificationDone {
 		return errNoNeedToUpdate
 	}
-	time.Sleep(50 * time.Millisecond)
+	go func() {
+		time.Sleep(50 * time.Millisecond)
 
-	slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairID)
-	if _, err := db.ExecContext(ctx, `UPDATE chairs SET is_free = 1 WHERE id = ?`, request.ChairID); err != nil {
-		return err
-	}
-	if err := updateIsFreeInCache(request.ChairID, true); err != nil {
-		return err
-	}
+		slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairID)
+		if _, err := db.ExecContext(ctx, `UPDATE chairs SET is_free = 1 WHERE id = ?`, request.ChairID); err != nil {
+		}
+		if err := updateIsFreeInCache(request.ChairID, true); err != nil {
+		}
+	}()
 
 	return nil
 }
