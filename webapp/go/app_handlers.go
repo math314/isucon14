@@ -792,30 +792,14 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNotificationResponseChairStats, error) {
+func getChairStats(chairID string) (appGetNotificationResponseChairStats, error) {
 	stats := appGetNotificationResponseChairStats{}
 
-	rides := []Ride{}
-	err := tx.SelectContext(
-		ctx,
-		&rides,
-		`SELECT * FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL`,
-		chairID,
-	)
-	if err != nil {
-		return stats, err
-	}
+	totalCountAndTotalEvaluation := getRideCachePerChairAndHasEvaluation(chairID)
 
-	totalRideCount := 0
-	totalEvaluation := 0.0
-	for _, ride := range rides {
-		totalRideCount++
-		totalEvaluation += float64(*ride.Evaluation)
-	}
-
-	stats.TotalRidesCount = totalRideCount
-	if totalRideCount > 0 {
-		stats.TotalEvaluationAvg = totalEvaluation / float64(totalRideCount)
+	stats.TotalRidesCount = totalCountAndTotalEvaluation.TotalCount
+	if totalCountAndTotalEvaluation.TotalCount > 0 {
+		stats.TotalEvaluationAvg = float64(totalCountAndTotalEvaluation.TotalEvaluationSum) / float64(totalCountAndTotalEvaluation.TotalCount)
 	}
 
 	return stats, nil
