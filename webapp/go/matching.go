@@ -89,17 +89,20 @@ func runMatching() {
 	chairCacheMapRWMutex.RUnlock()
 	chairLocationCacheMapRWMutex.RUnlock()
 
-	if len(latestChairLocations) < 5 {
-		// slog.Info("too few chairs")
+	if len(rides) == 0 || len(latestChairLocations) < 5 {
 		return
 	}
 
 	slog.Info("runMatching started", "rides", len(rides), "chairs", len(latestChairLocations))
+	usedChairs := make(map[string]struct{})
 	for _, ride := range rides {
 		// nearest chair
 		matchedId := ""
 		nearest := 10000000
 		for _, chair := range latestChairLocations {
+			if _, ok := usedChairs[chair.ChairID]; ok {
+				continue
+			}
 			distance := abs(chair.Latitude-ride.PickupLatitude) + abs(chair.Longitude-ride.PickupLongitude)
 			if distance < nearest {
 				nearest = distance
@@ -110,6 +113,7 @@ func runMatching() {
 			slog.Info("no chairs left")
 			break
 		}
+		usedChairs[matchedId] = struct{}{}
 
 		if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
 			slog.Error("failed to update ride", "error", err)
