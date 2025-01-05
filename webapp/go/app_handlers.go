@@ -304,6 +304,42 @@ func getLatestRideStatus(ctx context.Context, tx executableGet, rideID string) (
 	return status, nil
 }
 
+var rideIdToCouponMapRWMutex = sync.RWMutex{}
+var rideIdToCouponMap map[string]*Coupon = make(map[string]*Coupon)
+
+func loadRideIdToCouponMap() error {
+	rideIdToCouponMapRWMutex.Lock()
+	defer rideIdToCouponMapRWMutex.Unlock()
+
+	rideIdToCouponMap = make(map[string]*Coupon)
+	coupons := []Coupon{}
+	if err := db.Select(&coupons, "SELECT * FROM coupons WHERE used_by IS NOT NULL"); err != nil {
+		return err
+	}
+
+	for _, coupon := range coupons {
+		if coupon.UsedBy != nil {
+			rideIdToCouponMap[*coupon.UsedBy] = &coupon
+		}
+	}
+	return nil
+}
+
+func updateRideIdToCouponMap(rideID string, coupon *Coupon) {
+	rideIdToCouponMapRWMutex.Lock()
+	defer rideIdToCouponMapRWMutex.Unlock()
+
+	rideIdToCouponMap[rideID] = coupon
+}
+
+func getRideIdToCouponMap(rideID string) (*Coupon, bool) {
+	rideIdToCouponMapRWMutex.RLock()
+	defer rideIdToCouponMapRWMutex.RUnlock()
+
+	coupon, ok := rideIdToCouponMap[rideID]
+	return coupon, ok
+}
+
 func appPostRides(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &appPostRidesRequest{}
@@ -411,6 +447,27 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+
+	usedCoupon, err := func() (*Coupon, error) {
+		coupon := &Coupon{}
+		if err := tx.GetContext(ctx, coupon, "SELECT * FROM coupons WHERE used_by = ?", rideID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, nil
+			} else {
+				writeError(w, http.StatusInternalServerError, err)
+				return nil, err
+			}
+		}
+		return coupon, nil
+	}()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if usedCoupon != nil {
+		updateRideIdToCouponMap(rideID, usedCoupon)
 	}
 
 	ride := Ride{}
@@ -877,13 +934,8 @@ func calculateDiscountedFare(ctx context.Context, tx *sqlx.Tx, userID string, ri
 		// pickupLongitude = ride.PickupLongitude
 
 		// すでにクーポンが紐づいているならそれの割引額を参照
-		if err := tx.GetContext(ctx, &coupon, "SELECT * FROM coupons WHERE used_by = ?", rideId); err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				return 0, err
-			} else {
-				// slog.Info("calculateDiscountedFare - coupon is not used when ride is provided", "coupon", nil, "ride", ride)
-			}
-		} else {
+		coupon, couponFound := getRideIdToCouponMap(rideId)
+		if couponFound {
 			discount = coupon.Discount
 			// slog.Info("calculateDiscountedFare - coupon is used when ride is provided", "coupon", coupon, "ride", ride)
 		}
