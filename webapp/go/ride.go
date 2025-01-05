@@ -12,6 +12,7 @@ type RideStatusSentType int
 const (
 	AppNotification RideStatusSentType = iota
 	ChairNotification
+	EvaluationResultFlushed
 )
 
 type RideStatusSentAtRequest struct {
@@ -25,8 +26,9 @@ type RideStatusSentAtRequest struct {
 var rideStatusSentAtChan = make(chan RideStatusSentAtRequest, 1000)
 
 type RideStatusSentAt struct {
-	AppNotificationDone   bool
-	ChairNotificationDone bool
+	AppNotificationDone     bool
+	ChairNotificationDone   bool
+	EvaluationResultFlushed bool
 }
 
 var rideStatusSentAtCache = make(map[string]*RideStatusSentAt)
@@ -60,7 +62,7 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 
 	// slog.Info("checkStatusAndUpdateChairFreeFlag", "rideStatus", rideStatus)
 
-	if !rideStatusSentAt.AppNotificationDone || !rideStatusSentAt.ChairNotificationDone {
+	if !rideStatusSentAt.AppNotificationDone || !rideStatusSentAt.ChairNotificationDone || !rideStatusSentAt.EvaluationResultFlushed {
 		return errNoNeedToUpdate
 	}
 
@@ -117,6 +119,26 @@ func updateRideStatusChairSentAt(ctx context.Context, request RideStatusSentAtRe
 	return time, nil
 }
 
+func updateRideStatusEvaluationResultFlushed(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
+	time := time.Now()
+
+	if rideStatusSentAtCache[request.RideStatusID] == nil {
+		rideStatusSentAtCache[request.RideStatusID] = &RideStatusSentAt{}
+	}
+	rideStatusSentAtCache[request.RideStatusID].EvaluationResultFlushed = true
+	slog.Info("updateRideStatusEvaluationResultFlushed", "rideStatusId", request.RideStatusID)
+
+	if err := checkStatusAndUpdateChairFreeFlag(ctx, request); err != nil {
+		if errors.Is(err, errNoNeedToUpdate) {
+			return time, nil
+		} else {
+			return time, err
+		}
+	}
+
+	return time, nil
+}
+
 func launchRideStatusSentAtSyncer() {
 	go func() {
 		for req := range rideStatusSentAtChan {
@@ -127,11 +149,17 @@ func launchRideStatusSentAtSyncer() {
 				} else {
 					slog.Info("updated app sent at", "rideId", req.RideID, "app_sent_at", time)
 				}
-			} else {
+			} else if req.SentType == ChairNotification {
 				if time, err := updateRideStatusChairSentAt(ctx, req); err != nil {
 					slog.Error("failed to update chair sent at", "error", err)
 				} else {
 					slog.Info("updated chair sent at", "rideId", req.RideID, "chair_sent_at", time)
+				}
+			} else if req.SentType == EvaluationResultFlushed {
+				if time, err := updateRideStatusEvaluationResultFlushed(ctx, req); err != nil {
+					slog.Error("failed to update evaluation result flushed", "error", err)
+				} else {
+					slog.Info("updated evaluation result flushed", "rideId", req.RideID, "evaluation_result_flushed", time)
 				}
 			}
 		}

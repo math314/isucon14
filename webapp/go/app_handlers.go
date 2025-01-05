@@ -348,7 +348,7 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := insertRideStatus(ctx, tx, rideID, "MATCHING"); err != nil {
+	if _, err := insertRideStatus(ctx, tx, rideID, "MATCHING"); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -589,7 +589,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = insertRideStatus(ctx, tx, rideID, "COMPLETED")
+	chairGetNotificationResponseData, err := insertRideStatus(ctx, tx, rideID, "COMPLETED")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -603,6 +603,14 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, &appPostRideEvaluationResponse{
 		CompletedAt: updatedAt.UnixMilli(),
 	})
+
+	rideStatusSentAtChan <- RideStatusSentAtRequest{
+		RideStatusID: chairGetNotificationResponseData.RideStatusId,
+		RideID:       chairGetNotificationResponseData.RideID,
+		ChairID:      chairGetNotificationResponseData.Chair.ID,
+		Status:       chairGetNotificationResponseData.Status,
+		SentType:     EvaluationResultFlushed,
+	}
 }
 
 type appGetNotificationResponse struct {
