@@ -161,9 +161,10 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	defer tx.Rollback()
 
 	rideStatus := RideStatus{}
-	if err := tx.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ?`, request.RideID); err != nil {
+	if err := tx.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE id = ?`, request.RideStatusID); err != nil {
 		return err
 	}
+	slog.Info("checkStatusAndUpdateChairFreeFlag", "rideStatus", rideStatus)
 
 	if rideStatus.AppSentAt == nil || rideStatus.ChairSentAt == nil {
 		return errors.New("app_sent_at or chair_sent_at is nil")
@@ -188,6 +189,7 @@ func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequ
 	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
 		return time, err
 	}
+	slog.Info("updateRideStatusAppSentAt", "rideStatusId", request.RideStatusID, "time", time)
 
 	if err := checkStatusAndUpdateChairFreeFlag(ctx, request); err != nil {
 		return time, err
@@ -202,6 +204,7 @@ func updateRideStatusChairSentAt(ctx context.Context, request RideStatusSentAtRe
 	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
 		return time, err
 	}
+	slog.Info("updateRideStatusChairSentAt", "rideStatusId", request.RideStatusID, "time", time)
 
 	if err := checkStatusAndUpdateChairFreeFlag(ctx, request); err != nil {
 		return time, err
