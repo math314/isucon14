@@ -65,7 +65,7 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 
 	// slog.Info("checkStatusAndUpdateChairFreeFlag", "rideStatus", rideStatus)
 
-	if rideStatus.AppSentAt == nil || rideStatus.ChairSentAt == nil {
+	if !rideStatusSentAt.AppNotificationDone || !rideStatusSentAt.ChairNotificationDone {
 		return errNoNeedToUpdate
 	}
 
