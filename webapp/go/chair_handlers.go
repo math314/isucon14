@@ -191,7 +191,7 @@ func updateRideChairIdInCache(rideID, chairID string, updatedAt time.Time) error
 	return nil
 }
 
-func getRideByID(rideID string) (*Ride, bool) {
+func getRideByIDFromCache(rideID string) (*Ride, bool) {
 	rideCacheMapRWMutex.RLock()
 	defer rideCacheMapRWMutex.RUnlock()
 
@@ -237,11 +237,9 @@ func getChairGetNotificationResponseDataChannel(chairID string) chan *chairGetNo
 var ErrNoChairAssigned = fmt.Errorf("no chair assigned")
 
 func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*Ride, *chairGetNotificationResponseData, error) {
-	ride := &Ride{}
-
-	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideId); err != nil {
-		slog.Error("buildChairGetNotificationResponseData get ride", "error", err)
-		return nil, nil, err
+	ride, found := getRideByIDFromCache(rideId)
+	if !found {
+		return nil, nil, errNoRides
 	}
 
 	if !ride.ChairID.Valid {
