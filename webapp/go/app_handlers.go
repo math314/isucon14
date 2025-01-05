@@ -374,15 +374,29 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	now := time.Now().Truncate(time.Microsecond)
+	newRide := Ride{
+		ID:                   rideID,
+		UserID:               user.ID,
+		ChairID:              sql.NullString{},
+		PickupLatitude:       req.PickupCoordinate.Latitude,
+		PickupLongitude:      req.PickupCoordinate.Longitude,
+		DestinationLatitude:  req.DestinationCoordinate.Latitude,
+		DestinationLongitude: req.DestinationCoordinate.Longitude,
+		Evaluation:           nil,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO rides (id, user_id, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude)
-				  VALUES (?, ?, ?, ?, ?, ?)`,
-		rideID, user.ID, req.PickupCoordinate.Latitude, req.PickupCoordinate.Longitude, req.DestinationCoordinate.Latitude, req.DestinationCoordinate.Longitude,
+		`INSERT INTO rides (id, user_id, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		newRide.ID, newRide.UserID, newRide.PickupLatitude, newRide.PickupLongitude, newRide.DestinationLatitude, newRide.DestinationLongitude, newRide.CreatedAt, newRide.UpdatedAt,
 	); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	insertRideCacheMap(newRide)
 
 	if _, err := insertRideStatus(ctx, tx, rideID, "MATCHING"); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -615,6 +629,10 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if count == 0 {
 		writeError(w, http.StatusNotFound, errors.New("ride not found"))
+		return
+	}
+	if err := updateRideEvaluationInCache(rideID, req.Evaluation, updatedAt); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 

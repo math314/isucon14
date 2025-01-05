@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"time"
 )
 
 var chairIdToLatestRideIdMutex = &sync.RWMutex{}
@@ -115,8 +116,13 @@ func runMatching() {
 		}
 		usedChairs[matchedId] = struct{}{}
 
-		if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matchedId, ride.ID); err != nil {
+		now := time.Now().Truncate(time.Microsecond)
+		if _, err := tx.ExecContext(ctx, "UPDATE rides SET chair_id = ?, updated_at = ? WHERE id = ?", matchedId, now, ride.ID); err != nil {
 			slog.Error("failed to update ride", "error", err)
+			return
+		}
+		if err := updateRideChairIdInCache(ride.ID, matchedId, now); err != nil {
+			slog.Error("failed to update ride chair id", "error", err)
 			return
 		}
 

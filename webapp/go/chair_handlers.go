@@ -135,6 +135,70 @@ func loadLatestRideStatusCacheMap() error {
 	return nil
 }
 
+var rideCacheMapRWMutex = sync.RWMutex{}
+var rideCacheMap map[string]*Ride = make(map[string]*Ride)
+
+func loadRideCacheMap() error {
+	rideCacheMapRWMutex.Lock()
+	defer rideCacheMapRWMutex.Unlock()
+
+	rides := []*Ride{}
+	if err := db.Select(&rides, "SELECT * FROM rides"); err != nil {
+		return err
+	}
+
+	rideCacheMap = make(map[string]*Ride)
+	for _, ride := range rides {
+		rideCacheMap[ride.ID] = ride
+	}
+	return nil
+}
+
+func insertRideCacheMap(ride Ride) {
+	rideCacheMapRWMutex.Lock()
+	defer rideCacheMapRWMutex.Unlock()
+
+	rideCacheMap[ride.ID] = &ride
+}
+
+var errNoRides = fmt.Errorf("no rides")
+
+func updateRideEvaluationInCache(rideID string, evaluation int, updatedAt time.Time) error {
+	rideCacheMapRWMutex.Lock()
+	defer rideCacheMapRWMutex.Unlock()
+
+	ride, ok := rideCacheMap[rideID]
+	if !ok {
+		return errNoRides
+	}
+
+	ride.Evaluation = &evaluation
+	ride.UpdatedAt = updatedAt
+	return nil
+}
+
+func updateRideChairIdInCache(rideID, chairID string, updatedAt time.Time) error {
+	rideCacheMapRWMutex.Lock()
+	defer rideCacheMapRWMutex.Unlock()
+
+	ride, ok := rideCacheMap[rideID]
+	if !ok {
+		return errNoRides
+	}
+
+	ride.ChairID = sql.NullString{String: chairID, Valid: true}
+	ride.UpdatedAt = updatedAt
+	return nil
+}
+
+func getRideByID(rideID string) (*Ride, bool) {
+	rideCacheMapRWMutex.RLock()
+	defer rideCacheMapRWMutex.RUnlock()
+
+	ride, ok := rideCacheMap[rideID]
+	return ride, ok
+}
+
 var unsentRideStatusesToChairRWMutex = sync.RWMutex{}
 var unsentRideStatusesToChairChan map[string](chan *chairGetNotificationResponseData) = make(map[string](chan *chairGetNotificationResponseData))
 var sentLastRideStatusToChair map[string]*chairGetNotificationResponseData = make(map[string]*chairGetNotificationResponseData)
