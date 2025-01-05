@@ -137,6 +137,7 @@ CREATE TABLE coupons
 
 ALTER TABLE rides ADD INDEX rides_user_id_created_at_index (user_id, created_at);
 ALTER TABLE rides ADD INDEX rides_chair_id_updated_at_index (chair_id, updated_at);
+ALTER TABLE rides ADD INDEX rides_chair_id_created_at_index (chair_id, created_at);
 ALTER TABLE ride_statuses ADD INDEX ride_statuses_ride_id_app_sent_at_index (ride_id, app_sent_at);
 ALTER TABLE ride_statuses ADD INDEX ride_statuses_ride_id_chair_sent_at_index (ride_id, chair_sent_at);
 ALTER TABLE chair_locations ADD INDEX chair_locations_chair_id_created_at_index (chair_id, created_at);

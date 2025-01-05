@@ -120,7 +120,7 @@ func setup() http.Handler {
 		go func() {
 			for {
 				runMatching()
-				<-time.After(5 * time.Millisecond)
+				<-time.After(50 * time.Millisecond)
 			}
 		}()
 	} else {
