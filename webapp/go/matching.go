@@ -67,8 +67,6 @@ func runMatching() {
 		return
 	}
 
-	slog.Info("runMatching started")
-
 	latestChairLocations := []ChairLocationLatest{}
 	chairCacheMapRWMutex.RLock()
 	chairLocationCacheMapRWMutex.RLock()
@@ -96,6 +94,7 @@ func runMatching() {
 		return
 	}
 
+	slog.Info("runMatching started")
 	// nearest chair
 	matchedId := ""
 	nearest := 10000000

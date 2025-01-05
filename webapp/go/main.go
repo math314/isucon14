@@ -20,9 +20,6 @@ import (
 )
 
 var db *sqlx.DB
-var appRetryAfterMs int
-var chairRetryAfterMs int
-var appNotifyMs int
 
 func main() {
 	mux := setup()
@@ -76,33 +73,6 @@ func setup() http.Handler {
 	db.SetMaxOpenConns(50)
 	db.SetMaxIdleConns(50)
 
-	appRetryAfterMs = 500
-	appRetryAfterMsStr := os.Getenv("APP_RETRY_AFTER_MS")
-	if appRetryAfterMsStr != "" {
-		appRetryAfterMs, err = strconv.Atoi(appRetryAfterMsStr)
-		if err != nil {
-			panic(fmt.Sprintf("failed to convert APP_RETRY_AFTER_MS environment variable into int: %v", err))
-		}
-	}
-
-	appNotifyMs = 500
-	appNotifyMsStr := os.Getenv("APP_NOTIFY_AFTER_MS")
-	if appNotifyMsStr != "" {
-		appNotifyMs, err = strconv.Atoi(appNotifyMsStr)
-		if err != nil {
-			panic(fmt.Sprintf("failed to convert APP_NOTIFY_AFTER_MS environment variable into int: %v", err))
-		}
-	}
-
-	chairRetryAfterMs = 500
-	chairRetryAfterMsStr := os.Getenv("CHAIR_RETRY_AFTER_MS")
-	if chairRetryAfterMsStr != "" {
-		chairRetryAfterMs, err = strconv.Atoi(chairRetryAfterMsStr)
-		if err != nil {
-			panic(fmt.Sprintf("failed to convert CHAIR_RETRY_AFTER_MS environment variable into int: %v", err))
-		}
-	}
-
 	useMatching := false
 	if os.Getenv("ISUCON_MATCHING") == "true" {
 		useMatching = true
@@ -150,7 +120,7 @@ func setup() http.Handler {
 		go func() {
 			for {
 				runMatching()
-				<-time.After(20 * time.Millisecond)
+				<-time.After(5 * time.Millisecond)
 			}
 		}()
 	} else {
