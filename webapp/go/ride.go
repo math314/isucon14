@@ -41,12 +41,6 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 		return errNoNeedToUpdate
 	}
 
-	tx, err := db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
 	// rideStatus := RideStatus{}
 	// if err := tx.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE id = ?`, request.RideStatusID); err != nil {
 	// 	return err
@@ -68,18 +62,17 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	if !rideStatusSentAt.AppNotificationDone || !rideStatusSentAt.ChairNotificationDone {
 		return errNoNeedToUpdate
 	}
-	time.Sleep(20 * time.Millisecond)
 
 	// slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairID)
-	if _, err := tx.ExecContext(ctx, `UPDATE chairs SET is_free = 1 WHERE id = ?`, request.ChairID); err != nil {
-		return err
-	}
-	if err := updateIsFreeInCache(request.ChairID, true); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		if _, err := db.ExecContext(ctx, `UPDATE chairs SET is_free = 1 WHERE id = ?`, request.ChairID); err != nil {
+			slog.Error("failed to update chairs", "error", err)
+		}
+		if err := updateIsFreeInCache(request.ChairID, true); err != nil {
+			slog.Error("failed to update is free in cache", "error", err)
+		}
+	}()
 
 	return nil
 }
