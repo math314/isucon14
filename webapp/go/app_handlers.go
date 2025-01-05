@@ -544,7 +544,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedAt := time.Now()
+	updatedAt := time.Now().Truncate(time.Microsecond)
 	result, err := tx.ExecContext(
 		ctx,
 		`UPDATE rides SET evaluation = ?, updated_at = ? WHERE id = ?`,
