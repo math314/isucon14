@@ -157,7 +157,7 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	if _, ok := unsentRideStatusesToChairChan[chairID]; !ok {
 		unsentRideStatusesToChairChan[chairID] = make(chan *chairGetNotificationResponseData, 10)
 	}
-	slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
+	// slog.Info("appendChairGetNotificationResponseData", "chairID", chairID, "data", data)
 	unsentRideStatusesToChairChan[chairID] <- data
 }
 
@@ -209,13 +209,13 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		Status: rideStatus,
 	}
 
-	slog.Info("buildChairGetNotificationResponseData - update status", "chair", ride.ChairID, "currentStatus", rideStatus, "b", b)
+	// slog.Info("buildChairGetNotificationResponseData - update status", "chair", ride.ChairID, "currentStatus", rideStatus, "b", b)
 
 	return ride, b, nil
 }
 
 func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) error {
-	slog.Info("buildAndAppendChairGetNotificationResponseData", "rideStatusId", rideStatusId, "rideId", rideId, "rideStatus", rideStatus)
+	// slog.Info("buildAndAppendChairGetNotificationResponseData", "rideStatusId", rideStatusId, "rideId", rideId, "rideStatus", rideStatus)
 	ride, responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideStatusId, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
@@ -285,12 +285,12 @@ func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideS
 		}
 	}
 
-	slog.Info("buildChairGetNotificationResponseData - update status", "chair", ride.ChairID, "currentStatus", rideStatus, "b", responseData)
+	// slog.Info("buildChairGetNotificationResponseData - update status", "chair", ride.ChairID, "currentStatus", rideStatus, "b", responseData)
 	return ride, responseData, nil
 }
 
 func buildAndAppendAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) error {
-	slog.Info("buildAndAppendAppGetNotificationResponseData", "rideStatusId", rideStatusId, "rideId", rideId, "rideStatus", rideStatus)
+	// slog.Info("buildAndAppendAppGetNotificationResponseData", "rideStatusId", rideStatusId, "rideId", rideId, "rideStatus", rideStatus)
 	ride, responseData, err := buildAppGetNotificationResponseData(ctx, tx, rideStatusId, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
@@ -571,7 +571,7 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 				SentType:     ChairNotification,
 			}
 
-			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", dataFromChannel.Status)
+			// slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", dataFromChannel.Status)
 		case <-r.Context().Done():
 			return
 		}
