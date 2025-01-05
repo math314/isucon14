@@ -720,6 +720,9 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			if dataFromChannel.Chair != nil {
 				chairID = dataFromChannel.Chair.ID
 			}
+
+			slog.Info("appGetNotificationSSE - sent", "chair", chairID, "status", dataFromChannel.Status)
+
 			rideStatusSentAtChan <- RideStatusSentAtRequest{
 				RideStatusID: dataFromChannel.RideStatusId,
 				RideID:       dataFromChannel.RideID,
