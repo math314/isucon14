@@ -52,16 +52,30 @@ func appPostUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
+	now := time.Now().Truncate(time.Microsecond)
+	newUser := User{
+		ID:             userID,
+		Username:       req.Username,
+		Firstname:      req.FirstName,
+		Lastname:       req.LastName,
+		DateOfBirth:    req.DateOfBirth,
+		AccessToken:    accessToken,
+		InvitationCode: invitationCode,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
 	_, err = tx.ExecContext(
 		ctx,
-		"INSERT INTO users (id, username, firstname, lastname, date_of_birth, access_token, invitation_code) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		userID, req.Username, req.FirstName, req.LastName, req.DateOfBirth, accessToken, invitationCode,
+		"INSERT INTO users (id, username, firstname, lastname, date_of_birth, access_token, invitation_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		newUser.ID, newUser.Username, newUser.Firstname, newUser.Lastname, newUser.DateOfBirth, newUser.AccessToken, newUser.InvitationCode, newUser.CreatedAt, newUser.UpdatedAt,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		slog.Error("1", "error", err)
 		return
 	}
+	insertUserMapCache(newUser)
 
 	// 初回登録キャンペーンのクーポンを付与
 	_, err = tx.ExecContext(

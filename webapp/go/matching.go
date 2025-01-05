@@ -162,7 +162,7 @@ func runMatching() {
 			return
 		}
 
-		if _, err := buildAndAppendChairGetNotificationResponseData(ctx, tx, rideStatus.ID, ride.ID, "MATCHING"); err != nil {
+		if _, err := buildAndAppendChairGetNotificationResponseData(rideStatus.ID, ride.ID, "MATCHING"); err != nil {
 			slog.Error("failed to build and append chair get notification response data", "error", err)
 			return
 		}

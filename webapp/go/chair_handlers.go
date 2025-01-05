@@ -229,6 +229,40 @@ func getRideByIDFromCache(rideID string) (*Ride, bool) {
 	return ride, ok
 }
 
+var userMapRWMutex = sync.RWMutex{}
+var userMapCache map[string]*User = make(map[string]*User)
+
+func loadUserMapCache() error {
+	userMapRWMutex.Lock()
+	defer userMapRWMutex.Unlock()
+
+	users := []*User{}
+	if err := db.Select(&users, "SELECT * FROM users"); err != nil {
+		return err
+	}
+
+	userMapCache = make(map[string]*User)
+	for _, user := range users {
+		userMapCache[user.ID] = user
+	}
+	return nil
+}
+
+func insertUserMapCache(user User) {
+	userMapRWMutex.Lock()
+	defer userMapRWMutex.Unlock()
+
+	userMapCache[user.ID] = &user
+}
+
+func getUserByIDFromCache(userID string) (*User, bool) {
+	userMapRWMutex.RLock()
+	defer userMapRWMutex.RUnlock()
+
+	user, ok := userMapCache[userID]
+	return user, ok
+}
+
 var unsentRideStatusesToChairRWMutex = sync.RWMutex{}
 var unsentRideStatusesToChairChan map[string](chan *chairGetNotificationResponseData) = make(map[string](chan *chairGetNotificationResponseData))
 var sentLastRideStatusToChair map[string]*chairGetNotificationResponseData = make(map[string]*chairGetNotificationResponseData)
@@ -266,7 +300,7 @@ func getChairGetNotificationResponseDataChannel(chairID string) chan *chairGetNo
 
 var ErrNoChairAssigned = fmt.Errorf("no chair assigned")
 
-func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*Ride, *chairGetNotificationResponseData, error) {
+func buildChairGetNotificationResponseData(rideStatusId, rideId string, rideStatus string) (*Ride, *chairGetNotificationResponseData, error) {
 	ride, found := getRideByIDFromCache(rideId)
 	if !found {
 		return nil, nil, errNoRides
@@ -277,10 +311,9 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 		return nil, nil, ErrNoChairAssigned
 	}
 
-	user := &User{}
-	if err := tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID); err != nil {
-		slog.Error("buildChairGetNotificationResponseData get user", "error", err)
-		return nil, nil, err
+	user, found := getUserByIDFromCache(ride.UserID)
+	if !found {
+		return nil, nil, errors.New("user not found")
 	}
 
 	b := &chairGetNotificationResponseData{
@@ -306,9 +339,9 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 	return ride, b, nil
 }
 
-func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*chairGetNotificationResponseData, error) {
+func buildAndAppendChairGetNotificationResponseData(rideStatusId, rideId string, rideStatus string) (*chairGetNotificationResponseData, error) {
 	slog.Info("buildAndAppendChairGetNotificationResponseData", "rideStatusId", rideStatusId, "rideId", rideId, "rideStatus", rideStatus)
-	ride, responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideStatusId, rideId, rideStatus)
+	ride, responseData, err := buildChairGetNotificationResponseData(rideStatusId, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
 			return nil, nil
@@ -321,23 +354,16 @@ func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sql
 	return responseData, nil
 }
 
-func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*Ride, *appGetNotificationResponseData, error) {
+func buildAppGetNotificationResponseData(rideStatusId, rideId string, rideStatus string) (*Ride, *appGetNotificationResponseData, error) {
 	ride, found := getRideByIDFromCache(rideId)
 	if !found {
 		return nil, nil, errNoRides
 	}
 
-	user := &User{}
-	if err := tx.GetContext(ctx, user, "SELECT * FROM users WHERE id = ? FOR SHARE", ride.UserID); err != nil {
-		slog.Error("buildAppGetNotificationResponseData get user", "error", err)
-		return nil, nil, err
+	_, found = getUserByIDFromCache(ride.UserID)
+	if !found {
+		return nil, nil, errors.New("user not found")
 	}
-
-	// fare, err := calculateDiscountedFare(ctx, tx, ride.UserID, ride, ride.PickupLatitude, ride.PickupLongitude, ride.DestinationLatitude, ride.DestinationLongitude)
-	// if err != nil {
-	// 	slog.Error("buildAppGetNotificationResponseData calculateDiscountedFare", "error", err)
-	// 	return nil, nil, err
-	// }
 
 	responseData := &appGetNotificationResponseData{
 		RideStatusId: rideStatusId,
@@ -379,9 +405,9 @@ func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideS
 	return ride, responseData, nil
 }
 
-func buildAndAppendAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*appGetNotificationResponseData, error) {
+func buildAndAppendAppGetNotificationResponseData(rideStatusId, rideId string, rideStatus string) (*appGetNotificationResponseData, error) {
 	slog.Info("buildAndAppendAppGetNotificationResponseData", "rideStatusId", rideStatusId, "rideId", rideId, "rideStatus", rideStatus)
-	ride, responseData, err := buildAppGetNotificationResponseData(ctx, tx, rideStatusId, rideId, rideStatus)
+	ride, responseData, err := buildAppGetNotificationResponseData(rideStatusId, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
 			return nil, nil
@@ -415,8 +441,8 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 	}
 
 	updateLatestRideStatusCacheMap(rideStatus)
-	buildAndAppendChairGetNotificationResponseData(ctx, tx, id, ride_id, status)
-	response, _ := buildAndAppendAppGetNotificationResponseData(ctx, tx, id, ride_id, status)
+	buildAndAppendChairGetNotificationResponseData(id, ride_id, status)
+	response, _ := buildAndAppendAppGetNotificationResponseData(id, ride_id, status)
 
 	return response, nil
 }

@@ -174,6 +174,10 @@ func setup() http.Handler {
 		slog.Error("failed to load ride cache map", "error", err)
 	}
 
+	if err := loadUserMapCache(); err != nil {
+		slog.Error("failed to load user map cache", "error", err)
+	}
+
 	launchRideStatusSentAtSyncer()
 	launchChairPostRideStatusSyncer()
 
@@ -309,6 +313,12 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 
 	if err := loadRideCacheMap(); err != nil {
 		slog.Error("failed to load ride cache map", "error", err)
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := loadUserMapCache(); err != nil {
+		slog.Error("failed to load user map cache", "error", err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
