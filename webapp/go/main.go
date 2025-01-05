@@ -23,9 +23,10 @@ var db *sqlx.DB
 
 func main() {
 	mux := setup()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelError.Level(),
+	}))
 	slog.SetDefault(logger)
-	slog.SetLogLoggerLevel(slog.LevelError)
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
 }
