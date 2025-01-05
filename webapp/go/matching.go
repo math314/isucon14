@@ -142,11 +142,21 @@ func runMatching() {
 	slog.Info("matched", "chair_id", matchedId, "ride_id", ride.ID)
 	assignRideToChair(matchedId, newRide)
 
-	if err := buildAndAppendChairGetNotificationResponseData(ctx, tx, ride.ID, "MATCHING"); err != nil {
+	rideStatus := &RideStatus{}
+	if err := tx.GetContext(ctx, rideStatus, `SELECT * FROM ride_statuses WHERE ride_id = ? ORDER BY created_at DESC LIMIT 1`, ride.ID); err != nil {
+		slog.Error("failed to get ride status", "error", err)
+		return
+	}
+	if rideStatus.Status != "MATCHING" {
+		slog.Error("invalid ride status", "rideStatus", rideStatus)
+		return
+	}
+
+	if err := buildAndAppendChairGetNotificationResponseData(ctx, tx, rideStatus.ID, ride.ID, "MATCHING"); err != nil {
 		slog.Error("failed to build and append chair get notification response data", "error", err)
 		return
 	}
-	if err := buildAndAppendAppGetNotificationResponseData(ctx, tx, ride.ID, "MATCHING"); err != nil {
+	if err := buildAndAppendAppGetNotificationResponseData(ctx, tx, rideStatus.ID, ride.ID, "MATCHING"); err != nil {
 		slog.Error("failed to build and append app get notification response data", "error", err)
 		return
 	}
