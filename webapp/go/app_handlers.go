@@ -695,27 +695,22 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	for {
-		dataFromChannel, err := getRideStatusFromChannel(user.ID)
-		if err != nil {
-			slog.Error("appGetNotificationSSE - failed to get dataFromChannel", "error", err)
-		}
+	c := getAppGetNotificationResponseDataChannel(user.ID)
 
-		if dataFromChannel != nil {
+	for {
+		select {
+		case dataFromChannel := <-c:
 			tx, err := db.Beginx()
 			if err != nil {
 				slog.Error("appGetNotificationSSE - failed to begin transaction", "error", err)
 				return
 			}
-
 			dataFromChannel.Fare, err = calculateDiscountedFare(ctx, tx, user.ID, dataFromChannel.RideID, dataFromChannel.PickupCoordinate.Latitude, dataFromChannel.PickupCoordinate.Longitude, dataFromChannel.DestinationCoordinate.Latitude, dataFromChannel.DestinationCoordinate.Longitude)
 			tx.Rollback()
 			if err != nil {
 				slog.Error("appGetNotificationSSE - failed to calculate fare", "error", err)
 				return
 			}
-
-			// d, err := getRideStatus(ctx, user.ID)
 			b, _ := json.Marshal(dataFromChannel)
 			fmt.Fprintf(w, "data: %s\n", b)
 			w.(http.Flusher).Flush()
@@ -725,31 +720,8 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 				SentType: AppNotification,
 			}
 
-			slog.Info("appGetNotificationSSE - sent", "RideID", dataFromChannel.RideID, "status", dataFromChannel.Status)
-		}
-
-		if errors.Is(ErrNoRides, err) {
-			// retry
-			time.Sleep(time.Duration(appRetryAfterMs) * time.Millisecond)
-			continue
-		} else if err != nil {
-			slog.Error("appGetNotificationSSE", "error", err)
-			return
-		}
-
-		// if dataFromChannel == nil {
-		// 	slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
-		// } else if d != *dataFromChannel {
-		// 	slog.Error("appGetNotificationSSE mismatch", "user", user, "data", d, "dataFromChannel", dataFromChannel)
-		// } else {
-		// 	slog.Error("appGetNotificationSSE matched", "user", user, "data", d, "dataFromChannel", dataFromChannel)
-		// }
-
-		select {
 		case <-r.Context().Done():
 			return
-		default:
-			time.Sleep(time.Duration(appNotifyMs) * time.Millisecond)
 		}
 	}
 }
