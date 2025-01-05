@@ -231,6 +231,7 @@ func getRideByIDFromCache(rideID string) (*Ride, bool) {
 
 var userMapRWMutex = sync.RWMutex{}
 var userMapCache map[string]*User = make(map[string]*User)
+var accessTokenToUserCache map[string]*User = make(map[string]*User)
 
 func loadUserMapCache() error {
 	userMapRWMutex.Lock()
@@ -242,8 +243,10 @@ func loadUserMapCache() error {
 	}
 
 	userMapCache = make(map[string]*User)
+	accessTokenToUserCache = make(map[string]*User)
 	for _, user := range users {
 		userMapCache[user.ID] = user
+		accessTokenToUserCache[user.AccessToken] = user
 	}
 	return nil
 }
@@ -253,6 +256,7 @@ func insertUserMapCache(user User) {
 	defer userMapRWMutex.Unlock()
 
 	userMapCache[user.ID] = &user
+	accessTokenToUserCache[user.AccessToken] = &user
 }
 
 func getUserByIDFromCache(userID string) (*User, bool) {
@@ -260,6 +264,14 @@ func getUserByIDFromCache(userID string) (*User, bool) {
 	defer userMapRWMutex.RUnlock()
 
 	user, ok := userMapCache[userID]
+	return user, ok
+}
+
+func getUserByAccessToken(accessToken string) (*User, bool) {
+	userMapRWMutex.RLock()
+	defer userMapRWMutex.RUnlock()
+
+	user, ok := accessTokenToUserCache[accessToken]
 	return user, ok
 }
 
