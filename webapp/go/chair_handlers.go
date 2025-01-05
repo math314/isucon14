@@ -135,6 +135,100 @@ func loadLatestRideStatusCacheMap() error {
 	return nil
 }
 
+var rideCacheMapRWMutex = sync.RWMutex{}
+var rideCacheMap map[string]*Ride = make(map[string]*Ride)
+
+type TotalCountAndTotalEvaluation struct {
+	TotalCount         int
+	TotalEvaluationSum int
+}
+
+var rideCachePerChairAndHasEvaluation map[string]TotalCountAndTotalEvaluation = make(map[string]TotalCountAndTotalEvaluation)
+
+func updateRideCachePerChairAndHasEvaluationIfNeeded(ride *Ride) {
+	if ride.ChairID.Valid && ride.Evaluation != nil {
+		currentTotal := rideCachePerChairAndHasEvaluation[ride.ChairID.String]
+		currentTotal.TotalCount++
+		currentTotal.TotalEvaluationSum += *ride.Evaluation
+		rideCachePerChairAndHasEvaluation[ride.ChairID.String] = currentTotal
+	}
+}
+
+func getRideCachePerChairAndHasEvaluation(chairID string) TotalCountAndTotalEvaluation {
+	rideCacheMapRWMutex.RLock()
+	defer rideCacheMapRWMutex.RUnlock()
+
+	return rideCachePerChairAndHasEvaluation[chairID]
+}
+
+func loadRideCacheMap() error {
+	rideCacheMapRWMutex.Lock()
+	defer rideCacheMapRWMutex.Unlock()
+
+	rides := []*Ride{}
+	if err := db.Select(&rides, "SELECT * FROM rides"); err != nil {
+		return err
+	}
+
+	rideCacheMap = make(map[string]*Ride)
+	rideCachePerChairAndHasEvaluation = make(map[string]TotalCountAndTotalEvaluation)
+	for _, ride := range rides {
+		rideCacheMap[ride.ID] = ride
+		updateRideCachePerChairAndHasEvaluationIfNeeded(ride)
+	}
+	return nil
+}
+
+func insertRideCacheMap(ride Ride) {
+	rideCacheMapRWMutex.Lock()
+	defer rideCacheMapRWMutex.Unlock()
+
+	rideCacheMap[ride.ID] = &ride
+	updateRideCachePerChairAndHasEvaluationIfNeeded(&ride)
+}
+
+var errNoRides = fmt.Errorf("no rides")
+
+func updateRideEvaluationInCache(rideID string, evaluation int, updatedAt time.Time) error {
+	rideCacheMapRWMutex.Lock()
+	defer rideCacheMapRWMutex.Unlock()
+
+	ride, ok := rideCacheMap[rideID]
+	if !ok {
+		return errNoRides
+	}
+
+	ride.Evaluation = &evaluation
+	ride.UpdatedAt = updatedAt
+	// safe because Evaluation will be set only once
+	updateRideCachePerChairAndHasEvaluationIfNeeded(ride)
+	return nil
+}
+
+func updateRideChairIdInCache(rideID, chairID string, updatedAt time.Time) error {
+	rideCacheMapRWMutex.Lock()
+	defer rideCacheMapRWMutex.Unlock()
+
+	ride, ok := rideCacheMap[rideID]
+	if !ok {
+		return errNoRides
+	}
+
+	ride.ChairID = sql.NullString{String: chairID, Valid: true}
+	ride.UpdatedAt = updatedAt
+	// safe because ChairID will be set only once
+	updateRideCachePerChairAndHasEvaluationIfNeeded(ride)
+	return nil
+}
+
+func getRideByIDFromCache(rideID string) (*Ride, bool) {
+	rideCacheMapRWMutex.RLock()
+	defer rideCacheMapRWMutex.RUnlock()
+
+	ride, ok := rideCacheMap[rideID]
+	return ride, ok
+}
+
 var unsentRideStatusesToChairRWMutex = sync.RWMutex{}
 var unsentRideStatusesToChairChan map[string](chan *chairGetNotificationResponseData) = make(map[string](chan *chairGetNotificationResponseData))
 var sentLastRideStatusToChair map[string]*chairGetNotificationResponseData = make(map[string]*chairGetNotificationResponseData)
@@ -173,11 +267,9 @@ func getChairGetNotificationResponseDataChannel(chairID string) chan *chairGetNo
 var ErrNoChairAssigned = fmt.Errorf("no chair assigned")
 
 func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*Ride, *chairGetNotificationResponseData, error) {
-	ride := &Ride{}
-
-	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideId); err != nil {
-		slog.Error("buildChairGetNotificationResponseData get ride", "error", err)
-		return nil, nil, err
+	ride, found := getRideByIDFromCache(rideId)
+	if !found {
+		return nil, nil, errNoRides
 	}
 
 	if !ride.ChairID.Valid {
@@ -230,11 +322,9 @@ func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sql
 }
 
 func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*Ride, *appGetNotificationResponseData, error) {
-	ride := &Ride{}
-
-	if err := tx.GetContext(ctx, ride, "SELECT * FROM rides WHERE id = ?", rideId); err != nil {
-		slog.Error("buildAppGetNotificationResponseData get ride", "error", err)
-		return nil, nil, err
+	ride, found := getRideByIDFromCache(rideId)
+	if !found {
+		return nil, nil, errNoRides
 	}
 
 	user := &User{}
@@ -272,7 +362,7 @@ func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideS
 			return nil, nil, err
 		}
 
-		stats, err := getChairStats(ctx, tx, chair.ID)
+		stats, err := getChairStats(chair.ID)
 		if err != nil {
 			return nil, nil, err
 		}

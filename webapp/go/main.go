@@ -170,6 +170,10 @@ func setup() http.Handler {
 		slog.Error("failed to load ride id to coupon map", "error", err)
 	}
 
+	if err := loadRideCacheMap(); err != nil {
+		slog.Error("failed to load ride cache map", "error", err)
+	}
+
 	launchRideStatusSentAtSyncer()
 	launchChairPostRideStatusSyncer()
 
@@ -299,6 +303,12 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 
 	if err := loadRideIdToCouponMap(); err != nil {
 		slog.Error("failed to load ride id to coupon map", "error", err)
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := loadRideCacheMap(); err != nil {
+		slog.Error("failed to load ride cache map", "error", err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}

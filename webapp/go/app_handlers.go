@@ -374,15 +374,29 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	now := time.Now().Truncate(time.Microsecond)
+	newRide := Ride{
+		ID:                   rideID,
+		UserID:               user.ID,
+		ChairID:              sql.NullString{},
+		PickupLatitude:       req.PickupCoordinate.Latitude,
+		PickupLongitude:      req.PickupCoordinate.Longitude,
+		DestinationLatitude:  req.DestinationCoordinate.Latitude,
+		DestinationLongitude: req.DestinationCoordinate.Longitude,
+		Evaluation:           nil,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+	}
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO rides (id, user_id, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude)
-				  VALUES (?, ?, ?, ?, ?, ?)`,
-		rideID, user.ID, req.PickupCoordinate.Latitude, req.PickupCoordinate.Longitude, req.DestinationCoordinate.Latitude, req.DestinationCoordinate.Longitude,
+		`INSERT INTO rides (id, user_id, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		newRide.ID, newRide.UserID, newRide.PickupLatitude, newRide.PickupLongitude, newRide.DestinationLatitude, newRide.DestinationLongitude, newRide.CreatedAt, newRide.UpdatedAt,
 	); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	insertRideCacheMap(newRide)
 
 	if _, err := insertRideStatus(ctx, tx, rideID, "MATCHING"); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -470,9 +484,9 @@ func appPostRides(w http.ResponseWriter, r *http.Request) {
 		updateRideIdToCouponMap(rideID, usedCoupon)
 	}
 
-	ride := Ride{}
-	if err := tx.GetContext(ctx, &ride, "SELECT * FROM rides WHERE id = ?", rideID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
+	_, found := getRideByIDFromCache(rideID)
+	if !found {
+		writeError(w, http.StatusInternalServerError, errNoRides)
 		return
 	}
 
@@ -581,15 +595,12 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	ride := &Ride{}
-	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE id = ?`, rideID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusNotFound, errors.New("ride not found"))
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err)
+	ride, found := getRideByIDFromCache(rideID)
+	if !found {
+		writeError(w, http.StatusNotFound, errors.New("ride not found"))
 		return
 	}
+
 	status, err := getLatestRideStatusFromCache(ride.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -615,6 +626,10 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if count == 0 {
 		writeError(w, http.StatusNotFound, errors.New("ride not found"))
+		return
+	}
+	if err := updateRideEvaluationInCache(rideID, req.Evaluation, updatedAt); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -777,30 +792,14 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getChairStats(ctx context.Context, tx *sqlx.Tx, chairID string) (appGetNotificationResponseChairStats, error) {
+func getChairStats(chairID string) (appGetNotificationResponseChairStats, error) {
 	stats := appGetNotificationResponseChairStats{}
 
-	rides := []Ride{}
-	err := tx.SelectContext(
-		ctx,
-		&rides,
-		`SELECT * FROM rides WHERE chair_id = ? AND evaluation IS NOT NULL`,
-		chairID,
-	)
-	if err != nil {
-		return stats, err
-	}
+	totalCountAndTotalEvaluation := getRideCachePerChairAndHasEvaluation(chairID)
 
-	totalRideCount := 0
-	totalEvaluation := 0.0
-	for _, ride := range rides {
-		totalRideCount++
-		totalEvaluation += float64(*ride.Evaluation)
-	}
-
-	stats.TotalRidesCount = totalRideCount
-	if totalRideCount > 0 {
-		stats.TotalEvaluationAvg = totalEvaluation / float64(totalRideCount)
+	stats.TotalRidesCount = totalCountAndTotalEvaluation.TotalCount
+	if totalCountAndTotalEvaluation.TotalCount > 0 {
+		stats.TotalEvaluationAvg = float64(totalCountAndTotalEvaluation.TotalEvaluationSum) / float64(totalCountAndTotalEvaluation.TotalCount)
 	}
 
 	return stats, nil
