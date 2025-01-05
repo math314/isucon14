@@ -30,7 +30,7 @@ func loadPaymentGatewayURL(ctx context.Context) error {
 func main() {
 	mux := setup()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelError.Level(),
+		// Level: slog.LevelError.Level(),
 	}))
 	slog.SetDefault(logger)
 	slog.Info("Listening on :8080")
@@ -291,6 +291,7 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := loadRideIdToCouponMap(); err != nil {
+		slog.Error("failed to load ride id to coupon map", "error", err)
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
