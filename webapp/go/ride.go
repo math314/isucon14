@@ -64,7 +64,7 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	}
 	// time.Sleep(10 * time.Millisecond)
 
-	// slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairID)
+	slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairID)
 	if _, err := db.ExecContext(ctx, `UPDATE chairs SET is_free = 1 WHERE id = ?`, request.ChairID); err != nil {
 		return err
 	}
