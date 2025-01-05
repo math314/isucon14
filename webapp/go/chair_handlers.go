@@ -161,27 +161,13 @@ func appendChairGetNotificationResponseData(chairID string, data *chairGetNotifi
 	unsentRideStatusesToChairChan[chairID] <- data
 }
 
-func takeLatestUnsentNotificationResponseDataToChair(chairID string) (*chairGetNotificationResponseData, bool) {
+func getChairGetNotificationResponseDataChannel(chairID string) chan *chairGetNotificationResponseData {
 	unsentRideStatusesToChairRWMutex.Lock()
 	defer unsentRideStatusesToChairRWMutex.Unlock()
-
-	c, ok := unsentRideStatusesToChairChan[chairID]
-	if !ok {
-		return nil, false
+	if _, ok := unsentRideStatusesToChairChan[chairID]; !ok {
+		unsentRideStatusesToChairChan[chairID] = make(chan *chairGetNotificationResponseData, 10)
 	}
-
-	select {
-	case data := <-c:
-		slog.Info("takeLatestUnsentNotificationResponseDataToChair - new data", "chairID", chairID, "status", data.Status)
-		sentLastRideStatusToChair[chairID] = data
-		return data, true
-	default:
-		ret := sentLastRideStatusToChair[chairID]
-		if ret != nil {
-			slog.Info("takeLatestUnsentNotificationResponseDataToChair - existing data", "chairID", chairID, "status", ret.Status)
-		}
-		return sentLastRideStatusToChair[chairID], false
-	}
+	return unsentRideStatusesToChairChan[chairID]
 }
 
 var ErrNoChairAssigned = fmt.Errorf("no chair assigned")
@@ -568,35 +554,26 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
+	c := getChairGetNotificationResponseDataChannel(chair.ID)
+
 	for {
-		d, err := getChairNotification(chair)
-
-		if err != nil && !errors.Is(err, ErrNoChairs) {
-			slog.Error("chairGetNotification", "error", err)
-			return
-		}
-
-		if d != nil {
-			b, _ := json.Marshal(d)
+		select {
+		case dataFromChannel := <-c:
+			b, _ := json.Marshal(dataFromChannel)
 			fmt.Fprintf(w, "data: %s\n", b)
 			w.(http.Flusher).Flush()
 
 			rideStatusSentAtChan <- RideStatusSentAtRequest{
-				RideStatusID: d.RideStatusId,
-				RideID:       d.RideID,
+				RideStatusID: dataFromChannel.RideStatusId,
+				RideID:       dataFromChannel.RideID,
 				ChairID:      chair.ID,
-				Status:       d.Status,
+				Status:       dataFromChannel.Status,
 				SentType:     ChairNotification,
 			}
 
-			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", d.Status)
-		}
-
-		select {
+			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", dataFromChannel.Status)
 		case <-r.Context().Done():
 			return
-		default:
-			time.Sleep(200 * time.Millisecond)
 		}
 	}
 }
