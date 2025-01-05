@@ -41,10 +41,10 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 		return errNoNeedToUpdate
 	}
 
-	// rideStatus := RideStatus{}
-	// if err := tx.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE id = ?`, request.RideStatusID); err != nil {
-	// 	return err
-	// }
+	rideStatus := RideStatus{}
+	if err := db.GetContext(ctx, &rideStatus, `SELECT * FROM ride_statuses WHERE id = ?`, request.RideStatusID); err != nil {
+		return err
+	}
 	if rideStatusSentAtCache[request.RideStatusID] == nil {
 		rideStatusSentAtCache[request.RideStatusID] = &RideStatusSentAt{}
 	}
@@ -62,7 +62,7 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	if !rideStatusSentAt.AppNotificationDone || !rideStatusSentAt.ChairNotificationDone {
 		return errNoNeedToUpdate
 	}
-	time.Sleep(10 * time.Millisecond)
+	// time.Sleep(10 * time.Millisecond)
 
 	// slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairID)
 	if _, err := db.ExecContext(ctx, `UPDATE chairs SET is_free = 1 WHERE id = ?`, request.ChairID); err != nil {
@@ -77,9 +77,9 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 
 func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
 	time := time.Now()
-	// if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
-	// 	return time, err
-	// }
+	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET app_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
+		return time, err
+	}
 	if rideStatusSentAtCache[request.RideStatusID] == nil {
 		rideStatusSentAtCache[request.RideStatusID] = &RideStatusSentAt{}
 	}
@@ -99,9 +99,9 @@ func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequ
 
 func updateRideStatusChairSentAt(ctx context.Context, request RideStatusSentAtRequest) (time.Time, error) {
 	time := time.Now()
-	// if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
-	// 	return time, err
-	// }
+	if _, err := db.ExecContext(ctx, `UPDATE ride_statuses SET chair_sent_at = ? WHERE id = ?`, time, request.RideStatusID); err != nil {
+		return time, err
+	}
 	if rideStatusSentAtCache[request.RideStatusID] == nil {
 		rideStatusSentAtCache[request.RideStatusID] = &RideStatusSentAt{}
 	}
