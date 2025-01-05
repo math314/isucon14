@@ -666,7 +666,9 @@ func chairPostRideStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func launchChairPostRideStatusSyncer() {
-	for req := range chairPostRideStatusUpdateChan {
-		insertRideStatusWithoutTransaction(context.Background(), req.rideID, req.status)
-	}
+	go func() {
+		for req := range chairPostRideStatusUpdateChan {
+			insertRideStatusWithoutTransaction(context.Background(), req.rideID, req.status)
+		}
+	}()
 }
