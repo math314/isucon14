@@ -214,19 +214,19 @@ func buildChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rid
 	return ride, b, nil
 }
 
-func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) error {
+func buildAndAppendChairGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*chairGetNotificationResponseData, error) {
 	slog.Info("buildAndAppendChairGetNotificationResponseData", "rideStatusId", rideStatusId, "rideId", rideId, "rideStatus", rideStatus)
 	ride, responseData, err := buildChairGetNotificationResponseData(ctx, tx, rideStatusId, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
-			return nil
+			return nil, nil
 		} else {
-			return err
+			return nil, err
 		}
 	}
 
 	appendChairGetNotificationResponseData(ride.ChairID.String, responseData)
-	return nil
+	return responseData, nil
 }
 
 func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*Ride, *appGetNotificationResponseData, error) {
@@ -289,22 +289,22 @@ func buildAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideS
 	return ride, responseData, nil
 }
 
-func buildAndAppendAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) error {
+func buildAndAppendAppGetNotificationResponseData(ctx context.Context, tx *sqlx.Tx, rideStatusId, rideId string, rideStatus string) (*appGetNotificationResponseData, error) {
 	slog.Info("buildAndAppendAppGetNotificationResponseData", "rideStatusId", rideStatusId, "rideId", rideId, "rideStatus", rideStatus)
 	ride, responseData, err := buildAppGetNotificationResponseData(ctx, tx, rideStatusId, rideId, rideStatus)
 	if err != nil {
 		if errors.Is(err, ErrNoChairAssigned) {
-			return nil
+			return nil, nil
 		} else {
-			return err
+			return nil, err
 		}
 	}
 
 	appendAppGetNotificationResponseData(ride.UserID, responseData)
-	return nil
+	return responseData, nil
 }
 
-func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) error {
+func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) (*appGetNotificationResponseData, error) {
 	id := ulid.Make().String()
 	now := time.Now()
 	_, err := tx.ExecContext(
@@ -312,7 +312,7 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 		"INSERT INTO ride_statuses (id, ride_id, status, created_at) VALUES (?, ?, ?, ?)",
 		id, ride_id, status, now)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	rideStatus := &RideStatus{
@@ -326,9 +326,9 @@ func insertRideStatus(ctx context.Context, tx *sqlx.Tx, ride_id, status string) 
 
 	updateLatestRideStatusCacheMap(rideStatus)
 	buildAndAppendChairGetNotificationResponseData(ctx, tx, id, ride_id, status)
-	buildAndAppendAppGetNotificationResponseData(ctx, tx, id, ride_id, status)
+	response, _ := buildAndAppendAppGetNotificationResponseData(ctx, tx, id, ride_id, status)
 
-	return nil
+	return response, nil
 }
 
 func insertRideStatusWithoutTransaction(ctx context.Context, ride_id, status string) error {
@@ -338,7 +338,7 @@ func insertRideStatusWithoutTransaction(ctx context.Context, ride_id, status str
 	}
 	defer tx.Rollback()
 
-	if err := insertRideStatus(ctx, tx, ride_id, status); err != nil {
+	if _, err := insertRideStatus(ctx, tx, ride_id, status); err != nil {
 		return err
 	}
 

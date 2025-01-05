@@ -21,6 +21,12 @@ import (
 
 var db *sqlx.DB
 
+var paymentGatewayURL string
+
+func loadPaymentGatewayURL(ctx context.Context) error {
+	return db.GetContext(ctx, &paymentGatewayURL, "SELECT value FROM settings WHERE name = 'payment_gateway_url'")
+}
+
 func main() {
 	mux := setup()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
@@ -149,6 +155,10 @@ func setup() http.Handler {
 		slog.Error("failed to load unsent ride statuses to app", "error", err)
 	}
 
+	if err := loadPaymentGatewayURL(context.Background()); err != nil {
+		slog.Error("failed to load payment gateway url", "error", err)
+	}
+
 	launchRideStatusSentAtSyncer()
 	launchChairPostRideStatusSyncer()
 
@@ -267,6 +277,11 @@ func postInitialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := loadUnsentRideStatusesToApp(); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := loadPaymentGatewayURL(ctx); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
