@@ -148,6 +148,7 @@ func setup() http.Handler {
 	}
 
 	launchRideStatusSentAtSyncer()
+	launchChairPostRideStatusSyncer()
 
 	mux := chi.NewRouter()
 	mux.Use(middleware.Recoverer)

@@ -24,12 +24,14 @@ type RideStatusSentAtRequest struct {
 
 var rideStatusSentAtChan = make(chan RideStatusSentAtRequest, 1000)
 
+var errNoNeedToUpdate = errors.New("no need to update")
+
 func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSentAtRequest) error {
 	if request.Status != "COMPLETED" {
-		return nil
+		return errNoNeedToUpdate
 	}
 	if request.ChairID == "" {
-		return nil
+		return errNoNeedToUpdate
 	}
 
 	tx, err := db.Beginx()
@@ -45,7 +47,7 @@ func checkStatusAndUpdateChairFreeFlag(ctx context.Context, request RideStatusSe
 	// slog.Info("checkStatusAndUpdateChairFreeFlag", "rideStatus", rideStatus)
 
 	if rideStatus.AppSentAt == nil || rideStatus.ChairSentAt == nil {
-		return errors.New("app_sent_at or chair_sent_at is nil")
+		return errNoNeedToUpdate
 	}
 
 	// slog.Info("checkStatusAndUpdateChairFreeFlag updating chairs to FREE", "chair", request.ChairID)
@@ -70,7 +72,11 @@ func updateRideStatusAppSentAt(ctx context.Context, request RideStatusSentAtRequ
 	// slog.Info("updateRideStatusAppSentAt", "rideStatusId", request.RideStatusID, "time", time)
 
 	if err := checkStatusAndUpdateChairFreeFlag(ctx, request); err != nil {
-		return time, err
+		if errors.Is(err, errNoNeedToUpdate) {
+			return time, nil
+		} else {
+			return time, err
+		}
 	}
 	// update cache as well
 
@@ -85,7 +91,11 @@ func updateRideStatusChairSentAt(ctx context.Context, request RideStatusSentAtRe
 	// slog.Info("updateRideStatusChairSentAt", "rideStatusId", request.RideStatusID, "time", time)
 
 	if err := checkStatusAndUpdateChairFreeFlag(ctx, request); err != nil {
-		return time, err
+		if errors.Is(err, errNoNeedToUpdate) {
+			return time, nil
+		} else {
+			return time, err
+		}
 	}
 	// update cache as well
 
