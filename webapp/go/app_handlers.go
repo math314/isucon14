@@ -533,7 +533,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	status, err := getLatestRideStatus(ctx, tx, ride.ID)
+	status, err := getLatestRideStatusFromCache(ride.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -544,11 +544,11 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	time := time.Now()
+	updatedAt := time.Now()
 	result, err := tx.ExecContext(
 		ctx,
 		`UPDATE rides SET evaluation = ?, updated_at = ? WHERE id = ?`,
-		req.Evaluation, time, rideID)
+		req.Evaluation, updatedAt, rideID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
@@ -592,13 +592,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := requestPaymentGatewayPostPayment(ctx, paymentGatewayURL, paymentToken.Token, paymentGatewayRequest, func() ([]Ride, error) {
-		rides := []Ride{}
-		if err := tx.SelectContext(ctx, &rides, `SELECT * FROM rides WHERE user_id = ? ORDER BY created_at ASC`, ride.UserID); err != nil {
-			return nil, err
-		}
-		return rides, nil
-	}); err != nil {
+	if err := requestPaymentGatewayPostPayment(ctx, paymentGatewayURL, paymentToken.Token, paymentGatewayRequest); err != nil {
 		if errors.Is(err, erroredUpstream) {
 			writeError(w, http.StatusBadGateway, err)
 			return
@@ -613,7 +607,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, &appPostRideEvaluationResponse{
-		CompletedAt: time.UnixMilli(),
+		CompletedAt: updatedAt.UnixMilli(),
 	})
 }
 
