@@ -655,7 +655,6 @@ type appGetNotificationResponseChairStats struct {
 
 var unsentRideStatusesToAppRWMutex = sync.RWMutex{}
 var unsentRideStatusesToAppChan map[string](chan *appGetNotificationResponseData) = make(map[string](chan *appGetNotificationResponseData))
-var sentLastRideStatusToApp = map[string]*appGetNotificationResponseData{}
 
 func loadUnsentRideStatusesToApp() error {
 	unsentRideStatusesToAppRWMutex.Lock()
