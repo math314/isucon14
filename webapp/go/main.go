@@ -88,7 +88,7 @@ func setup() http.Handler {
 
 	// 定期的にChairLocationLatestを保存する処理
 	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(5000 * time.Millisecond)
 		for range ticker.C {
 			ctx := context.Background()
 			func() {
