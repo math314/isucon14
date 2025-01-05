@@ -162,11 +162,11 @@ func runMatching() {
 			return
 		}
 
-		if _, err := buildAndAppendChairGetNotificationResponseData(ctx, tx, rideStatus.ID, ride.ID, "MATCHING"); err != nil {
+		if _, err := buildAndAppendChairGetNotificationResponseData(rideStatus.ID, ride.ID, "MATCHING"); err != nil {
 			slog.Error("failed to build and append chair get notification response data", "error", err)
 			return
 		}
-		if _, err := buildAndAppendAppGetNotificationResponseData(ctx, tx, rideStatus.ID, ride.ID, "MATCHING"); err != nil {
+		if _, err := buildAndAppendAppGetNotificationResponseData(rideStatus.ID, ride.ID, "MATCHING"); err != nil {
 			slog.Error("failed to build and append app get notification response data", "error", err)
 			return
 		}
