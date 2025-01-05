@@ -25,6 +25,7 @@ func main() {
 	mux := setup()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
+	slog.SetLogLoggerLevel(slog.LevelError)
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
 }

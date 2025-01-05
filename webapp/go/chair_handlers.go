@@ -563,6 +563,8 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "data: %s\n", b)
 			w.(http.Flusher).Flush()
 
+			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", dataFromChannel.Status)
+
 			rideStatusSentAtChan <- RideStatusSentAtRequest{
 				RideStatusID: dataFromChannel.RideStatusId,
 				RideID:       dataFromChannel.RideID,
@@ -570,8 +572,6 @@ func chairGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 				Status:       dataFromChannel.Status,
 				SentType:     ChairNotification,
 			}
-
-			slog.Info("chairGetNotification - sent", "chair", chair.ID, "status", dataFromChannel.Status)
 		case <-r.Context().Done():
 			return
 		}

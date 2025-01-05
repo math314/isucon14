@@ -720,6 +720,9 @@ func appGetNotificationSSE(w http.ResponseWriter, r *http.Request) {
 			if dataFromChannel.Chair != nil {
 				chairID = dataFromChannel.Chair.ID
 			}
+
+			slog.Info("appGetNotificationSSE - sent", "chair", chairID, "status", dataFromChannel.Status)
+
 			rideStatusSentAtChan <- RideStatusSentAtRequest{
 				RideStatusID: dataFromChannel.RideStatusId,
 				RideID:       dataFromChannel.RideID,
@@ -863,7 +866,7 @@ func appGetNearbyChairs(w http.ResponseWriter, r *http.Request) {
 	chairLocationCacheMapRWMutex.RUnlock()
 	chairCacheMapRWMutex.RUnlock()
 
-	// slog.Info("appGetNearbyChairs - result", "coordinate", coordinate, "distance", distance, "nearbyChairs", nearbyChairs)
+	slog.Info("appGetNearbyChairs - result", "coordinate", coordinate, "distance", distance, "nearbyChairs", nearbyChairs)
 
 	writeJSON(w, http.StatusOK, &appGetNearbyChairsResponse{
 		Chairs:      nearbyChairs,
