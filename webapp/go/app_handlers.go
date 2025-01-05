@@ -561,12 +561,6 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = insertRideStatus(ctx, tx, rideID, "COMPLETED")
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
 	paymentToken := &PaymentToken{}
 	if err := tx.GetContext(ctx, paymentToken, `SELECT * FROM payment_tokens WHERE user_id = ?`, ride.UserID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -596,6 +590,12 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	err = insertRideStatusWithoutTransaction(ctx, rideID, "COMPLETED")
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
