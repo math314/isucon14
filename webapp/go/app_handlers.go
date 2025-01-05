@@ -612,7 +612,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, &appPostRideEvaluationResponse{
-		CompletedAt: ride.UpdatedAt.UnixMilli(),
+		CompletedAt: time.Now().UnixMilli(),
 	})
 }
 
